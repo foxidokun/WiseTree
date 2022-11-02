@@ -2,6 +2,10 @@
 #include <string.h>
 #include <assert.h>
 
+#include "common.h"
+
+#include "lib/log.h"
+
 #include "tree.h"
 
 int strcmp_wrapper (const void *lhs, const void *rhs)
@@ -11,22 +15,18 @@ int strcmp_wrapper (const void *lhs, const void *rhs)
 
 int main ()
 {
-    FILE *lol = fopen ("dump.txt", "w");
+    FILE *lol  = fopen ("dump.txt", "r");
+    FILE *logs = fopen ("log.html", "w");
+
+    set_log_stream (logs);
 
     tree::tree_t tree = {};
-    tree::ctor (&tree, 64, strcmp_wrapper);
+    tree::ctor (&tree, OBJ_SIZE, strcmp_wrapper);
 
-    char str[64] = "Мать жива";
+    tree::load (&tree, lol);
 
-    tree::insert (&tree, str);
-
-    strcpy (str, "Человек");
-    tree::insert_left (&tree, tree.head_node, str);
-
-    strcpy (str, "Дотер");
-    tree::insert_right (&tree, tree.head_node, str);
-
-    tree::dump (&tree, lol);
+    tree::store (&tree, lol);
+    tree::graph_dump (&tree, "For lulz");
 
     tree::dtor (&tree);
 }

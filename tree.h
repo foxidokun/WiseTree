@@ -44,9 +44,10 @@ namespace tree
                                  walk_f post_exec, void *post_param);
 
 
-    void dump (tree_t *tree, FILE *stream);
-    
-    static inline void do_nothing (node_t *, void *) {;}    
+    void store (tree_t *tree, FILE *stream);
+    tree::tree_err_t load (tree_t *tree, FILE *dump);
+
+    void graph_dump (tree_t *tree, const char *reason_fmt, ...);
 }
 
 #endif //TREE_H
