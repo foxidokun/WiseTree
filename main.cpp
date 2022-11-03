@@ -22,7 +22,13 @@ int main ()
 
     tree::tree_t tree = {};
     tree::ctor (&tree, OBJ_SIZE, strcmp_wrapper);
-    tree::load (&tree, dump_file);
+    
+    if (tree::load (&tree, dump_file) != tree::OK)
+    {
+        log (log::ERR, "Failed to load tree");
+        return -1;
+    }
+
     fclose (dump_file);
 
     tree::graph_dump (&tree, "For lulz");
@@ -33,7 +39,7 @@ int main ()
     if (!dump_file) log (log::ERR, "Failed to open dump file");
 
     tree::store (&tree, dump_file);
-    
+
     tree::dtor (&tree);
 }
 

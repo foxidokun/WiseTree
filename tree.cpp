@@ -39,14 +39,14 @@ static const char DUMP_FILE_PATH_FORMAT[] = "dump/%d.grv";
 // STATIC PROTOTYPES SECTION
 // ----------------------------------------------------------------------------
 
-static void dfs_recursion (tree::node_t *node, tree::walk_f pre_exec,  void *pre_param,
+static bool dfs_recursion (tree::node_t *node, tree::walk_f pre_exec,  void *pre_param,
                                                tree::walk_f in_exec,   void *in_param,
                                                tree::walk_f post_exec, void *post_param);
 
-static void node_codegen (tree::node_t *node, void *stream_void);
-static void node_load    (tree::node_t *node, void *stream_void);
+static bool node_codegen (tree::node_t *node, void *stream_void);
+static bool node_load    (tree::node_t *node, void *stream_void);
 
-static void eat_closing_bracket (tree::node_t *node, void *params);
+static bool eat_closing_bracket (tree::node_t *node, void *params);
 
 // ----------------------------------------------------------------------------
 // PUBLIC SECTION
@@ -66,7 +66,7 @@ void tree::dtor (tree_t *tree)
 {
     assert (tree != nullptr && "invalid pointer");
 
-    tree::walk_f free_node_func = [](node_t* node, void *){ free(node); };
+    tree::walk_f free_node_func = [](node_t* node, void *){ free(node); return true; };
 
     dfs_exec (tree, nullptr,        nullptr,
                     nullptr,        nullptr,
@@ -176,18 +176,16 @@ void tree::change_value (tree_t *tree, node_t *node, const void *elem)
 
 // ----------------------------------------------------------------------------
 
-void tree::dfs_exec (tree_t *tree, walk_f pre_exec,  void *pre_param,
+bool tree::dfs_exec (tree_t *tree, walk_f pre_exec,  void *pre_param,
                                    walk_f in_exec,   void *in_param,
                                    walk_f post_exec, void *post_param)
 {
-    assert (tree      != nullptr && "invalid pointer");
+    assert (tree != nullptr && "invalid pointer");
+    assert (tree->head_node != nullptr && "invalid tree");
 
-    if (tree->head_node != nullptr)
-    {
-        dfs_recursion (tree->head_node, pre_exec,  pre_param,
-                                        in_exec,   in_param,
-                                        post_exec, post_param);
-    }
+    return dfs_recursion (tree->head_node, pre_exec,  pre_param,
+                                           in_exec,   in_param,
+                                           post_exec, post_param);
 }
 
 // ----------------------------------------------------------------------------
@@ -207,11 +205,15 @@ void tree::store (tree_t *tree, FILE *stream)
             {
                 fprintf ((FILE *) inner_stream, "{ '%s' ",   (char *) node->value);
             }
+
+            return true;
         };
     
     walk_f post_exec = [](node_t *, void *inner_stream)
         {   
             fprintf ((FILE *) inner_stream, "}\n");
+
+            return true;
         };
 
 
@@ -236,9 +238,13 @@ tree::tree_err_t tree::load (tree_t *tree, FILE *dump)
 
     load_params params = {dump, tree};
 
-    dfs_exec (tree, node_load,             &params,
-                    nullptr,               nullptr,
-                    eat_closing_bracket,   &params);
+    if (!dfs_exec (tree, node_load,             &params,
+                         nullptr,               nullptr,
+                         eat_closing_bracket,   &params))
+    {
+        log (log::ERR, "Failed to load tree");
+        return INVALID_DUMP;
+    }
 
     return OK;
 }
@@ -322,45 +328,51 @@ tree::node_t *tree::new_node (const void *elem, size_t obj_size)
 // PRIVATE SECTION
 // ----------------------------------------------------------------------------
 
-static void dfs_recursion (tree::node_t *node, tree::walk_f pre_exec,  void *pre_param,
+static bool dfs_recursion (tree::node_t *node, tree::walk_f pre_exec,  void *pre_param,
                                                tree::walk_f in_exec,   void *in_param,
                                                tree::walk_f post_exec, void *post_param)
 {
     assert (node != nullptr && "invalid pointer");
 
-    if (pre_exec != nullptr)
+    bool cont = true; 
+
+    if (cont && pre_exec != nullptr)
     {
-        pre_exec (node, pre_param);
+        cont = cont && pre_exec (node, pre_param);
     }
 
-    if (node->left != nullptr)
+    if (cont && node->left != nullptr)
     {
-        dfs_recursion (node->left, pre_exec,  pre_param,
+        cont = cont && dfs_recursion (node->left, pre_exec,  pre_param,
                                    in_exec,   in_param,
                                    post_exec, post_param);
     }
 
-    if (in_exec != nullptr)
+    if (cont && in_exec != nullptr)
     {
-        in_exec (node, in_param);
+        cont = cont && in_exec (node, in_param);
+
     }
 
-    if (node->right != nullptr)
+    if (cont && node->right != nullptr)
     {
-        dfs_recursion (node->right, pre_exec,  pre_param,
+        cont = cont && dfs_recursion (node->right, pre_exec,  pre_param,
                                     in_exec,   in_param,
                                     post_exec, post_param);
     }
 
-    if (post_exec != nullptr)
+    if (cont && post_exec != nullptr)
     {
-        post_exec (node, post_param);
+        cont = cont && post_exec (node, post_param);
+
     }
+
+    return cont;
 }
 
 // ----------------------------------------------------------------------------
 
-static void node_codegen (tree::node_t *node, void *stream_void)
+static bool node_codegen (tree::node_t *node, void *stream_void)
 {
     assert (node        != nullptr && "invalid pointer");
     assert (stream_void != nullptr && "invalid pointer");
@@ -379,6 +391,8 @@ static void node_codegen (tree::node_t *node, void *stream_void)
     {
         fprintf (stream, "node_%p -> node_%p\n", node, node->right);
     }
+
+    return true;
 }
 
 // ----------------------------------------------------------------------------
@@ -391,7 +405,7 @@ static void node_codegen (tree::node_t *node, void *stream_void)
     }                       \
 }
 
-static void node_load (tree::node_t *node, void *params)
+static bool node_load (tree::node_t *node, void *params)
 {
     assert (node   != nullptr && "invalid pointer");
     assert (params != nullptr && "invalid pointer");
@@ -399,7 +413,7 @@ static void node_load (tree::node_t *node, void *params)
     FILE *stream       = ((load_params *) params)->stream;
     tree::tree_t *tree = ((load_params *) params)->tree;
 
-    char c = getc (stream);
+    int c = getc (stream);
     char buf[OBJ_SIZE + 1] = ""; 
 
     SKIP_SPACES ();
@@ -412,7 +426,7 @@ static void node_load (tree::node_t *node, void *params)
         if (c != '\'')
         {
             log (log::ERR, "Invalid node syntax");
-            assert (0 && "Invalid node syntax, see logs");
+            return false;
         }
 
         int i = 0;
@@ -425,7 +439,7 @@ static void node_load (tree::node_t *node, void *params)
                 break;
             }
 
-            buf[i] = c;
+            buf[i] = (char) c;
         }
 
         buf[i] = '\0';
@@ -452,25 +466,28 @@ static void node_load (tree::node_t *node, void *params)
     ungetc (c, stream);
 
     SKIP_SPACES ();
+
+    return true;
 }
 
 // ----------------------------------------------------------------------------
 
-static void eat_closing_bracket (tree::node_t *node, void *params)
+static bool eat_closing_bracket (tree::node_t *node, void *params)
 {
     assert (node   != nullptr && "invalid pointer");
     assert (params != nullptr && "invalid pointer");
 
     FILE *stream       = ((load_params *) params)->stream;
-    tree::tree_t *tree = ((load_params *) params)->tree;
 
-    char c = getc (stream);
+    int c = getc (stream);
 
     SKIP_SPACES();
 
     if (c != '}')
     {
         log (log::ERR, "Invalid dump: no closing bracket");
-        assert (0   && "invalid dump: no closing bracket");
+        return false;
     }
+
+    return true;
 }

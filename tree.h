@@ -26,9 +26,10 @@ namespace tree
     {
         OK = 0,
         OOM,
+        INVALID_DUMP,
     };
 
-    typedef void (*walk_f)(node_t *node, void *param);
+    typedef bool (*walk_f)(node_t *node, void *param);
 
     void ctor (tree_t *tree, size_t obj_size, int (*objcmp)(const void *, const void *));
     void dtor (tree_t *tree);
@@ -39,7 +40,7 @@ namespace tree
 
     void change_value (tree_t *tree, node_t *node, const void *elem);
 
-    void dfs_exec (tree_t *tree, walk_f pre_exec,  void *pre_param,
+    bool dfs_exec (tree_t *tree, walk_f pre_exec,  void *pre_param,
                                  walk_f in_exec,   void *in_param,
                                  walk_f post_exec, void *post_param);
 

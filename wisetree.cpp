@@ -24,6 +24,8 @@ const int INP_BUF_SIZE = 20;
 // DEF SECTION
 // ----------------------------------------------------------------------------
 
+static void get_input (char *line);
+
 static void add_unknown_object (tree::tree_t *tree, tree::node_t *bad_node);
 
 // ----------------------------------------------------------------------------
@@ -42,10 +44,10 @@ void guess_mode (tree::tree_t *tree)
 
     while (true)
     {
-        printf ("%s?\n (yes/no): ", (char *) node->value);
-        fgets (input, INP_BUF_SIZE, stdin);
+        printf ("%s?\n (да/нет): ", (char *) node->value);
+        get_input (input);
 
-        if (strcasecmp (input, "yes\n") == 0)
+        if (strcasecmp (input, "да") == 0)
         {
             node = node->left;
             if (node == nullptr)
@@ -54,7 +56,7 @@ void guess_mode (tree::tree_t *tree)
                 break;
             }
         }
-        else if (strcasecmp (input, "no\n") == 0)
+        else if (strcasecmp (input, "нет") == 0)
         {
             if (node->right == nullptr)
             {
@@ -69,6 +71,15 @@ void guess_mode (tree::tree_t *tree)
 }
 
 // ----------------------------------------------------------------------------
+
+void definition_mode (tree::tree_t *tree)
+{
+    assert (tree != nullptr && "invalid pointer");
+
+
+}
+
+// ----------------------------------------------------------------------------
 // STATIC SECTION
 // ----------------------------------------------------------------------------
 
@@ -80,19 +91,24 @@ static void add_unknown_object (tree::tree_t *tree, tree::node_t *bad_node)
     char buf[OBJ_SIZE + 1];
 
     printf ("Ну, гений мысли, и что же ты загадал?\n");
-    fgets (buf, OBJ_SIZE, stdin);
-    *(strchr (buf, '\n')) = '\0';
+    get_input (buf);
 
     tree::node_t *good_node  = tree::new_node (buf, OBJ_SIZE);
 
     printf ("Ох, дружок, а сформулировать чем это отличается от '%s' сможешь то?\nЭто ... ", (char *) bad_node->value);
-    fgets (buf, OBJ_SIZE, stdin);
-    *(strchr (buf, '\n')) = '\0';
-
+    get_input (buf);
+    
     tree::node_t *new_bad_node  = tree::new_node (bad_node->value, OBJ_SIZE);
 
     tree::change_value (tree, bad_node, buf);
 
     bad_node->left  = good_node;
     bad_node->right = new_bad_node;
+}
+
+
+static void get_input (char *line)
+{
+    fgets (line, OBJ_SIZE, stdin);
+    *(strchr (line, '\n')) = '\0';
 }
