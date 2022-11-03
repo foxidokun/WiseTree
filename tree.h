@@ -29,7 +29,7 @@ namespace tree
         INVALID_DUMP,
     };
 
-    typedef bool (*walk_f)(node_t *node, void *param);
+    typedef bool (*walk_f)(node_t *node, void *param, bool cont);
 
     void ctor (tree_t *tree, size_t obj_size, int (*objcmp)(const void *, const void *));
     void dtor (tree_t *tree);

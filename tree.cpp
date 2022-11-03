@@ -43,10 +43,10 @@ static bool dfs_recursion (tree::node_t *node, tree::walk_f pre_exec,  void *pre
                                                tree::walk_f in_exec,   void *in_param,
                                                tree::walk_f post_exec, void *post_param);
 
-static bool node_codegen (tree::node_t *node, void *stream_void);
-static bool node_load    (tree::node_t *node, void *stream_void);
+static bool node_codegen (tree::node_t *node, void *stream_void, bool cont);
+static bool node_load    (tree::node_t *node, void *stream_void, bool cont);
 
-static bool eat_closing_bracket (tree::node_t *node, void *params);
+static bool eat_closing_bracket (tree::node_t *node, void *params, bool cont);
 
 // ----------------------------------------------------------------------------
 // PUBLIC SECTION
@@ -66,7 +66,7 @@ void tree::dtor (tree_t *tree)
 {
     assert (tree != nullptr && "invalid pointer");
 
-    tree::walk_f free_node_func = [](node_t* node, void *){ free(node); return true; };
+    tree::walk_f free_node_func = [](node_t* node, void *, bool){ free(node); return true; };
 
     dfs_exec (tree, nullptr,        nullptr,
                     nullptr,        nullptr,
@@ -195,7 +195,7 @@ void tree::store (tree_t *tree, FILE *stream)
     assert (tree   != nullptr && "invalid pointer");
     assert (stream != nullptr && "invalid pointer");
 
-    walk_f pre_exec = [](node_t *node, void *inner_stream)
+    walk_f pre_exec = [](node_t *node, void *inner_stream, bool)
         {
             if (node->left || node->right)
             {
@@ -209,7 +209,7 @@ void tree::store (tree_t *tree, FILE *stream)
             return true;
         };
     
-    walk_f post_exec = [](node_t *, void *inner_stream)
+    walk_f post_exec = [](node_t *, void *inner_stream, bool)
         {   
             fprintf ((FILE *) inner_stream, "}\n");
 
@@ -336,9 +336,9 @@ static bool dfs_recursion (tree::node_t *node, tree::walk_f pre_exec,  void *pre
 
     bool cont = true; 
 
-    if (cont && pre_exec != nullptr)
+    if (pre_exec != nullptr)
     {
-        cont = cont && pre_exec (node, pre_param);
+        cont = pre_exec (node, pre_param, cont) && cont;
     }
 
     if (cont && node->left != nullptr)
@@ -348,9 +348,9 @@ static bool dfs_recursion (tree::node_t *node, tree::walk_f pre_exec,  void *pre
                                    post_exec, post_param);
     }
 
-    if (cont && in_exec != nullptr)
+    if (in_exec != nullptr)
     {
-        cont = cont && in_exec (node, in_param);
+        cont = in_exec (node, in_param, cont) && cont;
 
     }
 
@@ -361,10 +361,9 @@ static bool dfs_recursion (tree::node_t *node, tree::walk_f pre_exec,  void *pre
                                     post_exec, post_param);
     }
 
-    if (cont && post_exec != nullptr)
+    if (post_exec != nullptr)
     {
-        cont = cont && post_exec (node, post_param);
-
+        cont = post_exec (node, post_param, cont) && cont;
     }
 
     return cont;
@@ -372,7 +371,7 @@ static bool dfs_recursion (tree::node_t *node, tree::walk_f pre_exec,  void *pre
 
 // ----------------------------------------------------------------------------
 
-static bool node_codegen (tree::node_t *node, void *stream_void)
+static bool node_codegen (tree::node_t *node, void *stream_void, bool)
 {
     assert (node        != nullptr && "invalid pointer");
     assert (stream_void != nullptr && "invalid pointer");
@@ -405,10 +404,15 @@ static bool node_codegen (tree::node_t *node, void *stream_void)
     }                       \
 }
 
-static bool node_load (tree::node_t *node, void *params)
+static bool node_load (tree::node_t *node, void *params, bool cont)
 {
     assert (node   != nullptr && "invalid pointer");
     assert (params != nullptr && "invalid pointer");
+
+    if (!cont)
+    {
+        return false;
+    }
 
     FILE *stream       = ((load_params *) params)->stream;
     tree::tree_t *tree = ((load_params *) params)->tree;
@@ -472,10 +476,15 @@ static bool node_load (tree::node_t *node, void *params)
 
 // ----------------------------------------------------------------------------
 
-static bool eat_closing_bracket (tree::node_t *node, void *params)
+static bool eat_closing_bracket (tree::node_t *node, void *params, bool cont)
 {
     assert (node   != nullptr && "invalid pointer");
     assert (params != nullptr && "invalid pointer");
+
+    if (!cont)
+    {
+        return false;
+    }
 
     FILE *stream       = ((load_params *) params)->stream;
 
