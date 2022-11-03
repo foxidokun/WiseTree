@@ -28,5 +28,13 @@ int main ()
     tree::store (&tree, lol);
     tree::graph_dump (&tree, "For lulz");
 
+    akinator (&tree);
+
+    fclose (lol);
+
+    FILE *lol2  = fopen ("dump.txt", "w");
+
+    tree::store (&tree, lol2);
+
     tree::dtor (&tree);
 }

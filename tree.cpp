@@ -39,14 +39,14 @@ static const char DUMP_FILE_PATH_FORMAT[] = "dump/%d.grv";
 // STATIC PROTOTYPES SECTION
 // ----------------------------------------------------------------------------
 
-static tree::node_t *new_node (const void *elem, size_t obj_size);
-
 static void dfs_recursion (tree::node_t *node, tree::walk_f pre_exec,  void *pre_param,
                                                tree::walk_f in_exec,   void *in_param,
                                                tree::walk_f post_exec, void *post_param);
 
 static void node_codegen (tree::node_t *node, void *stream_void);
 static void node_load    (tree::node_t *node, void *stream_void);
+
+static void eat_closing_bracket (tree::node_t *node, void *params);
 
 // ----------------------------------------------------------------------------
 // PUBLIC SECTION
@@ -236,9 +236,9 @@ tree::tree_err_t tree::load (tree_t *tree, FILE *dump)
 
     load_params params = {dump, tree};
 
-    dfs_exec (tree, node_load, &params,
-                    nullptr,   nullptr,
-                    nullptr,   nullptr);
+    dfs_exec (tree, node_load,             &params,
+                    nullptr,               nullptr,
+                    eat_closing_bracket,   &params);
 
     return OK;
 }
@@ -301,10 +301,8 @@ void tree::graph_dump (tree_t *tree, const char *reason_fmt, ...)
 }
 
 // ----------------------------------------------------------------------------
-// PRIVATE SECTION
-// ----------------------------------------------------------------------------
 
-static tree::node_t *new_node (const void *elem, size_t obj_size)
+tree::node_t *tree::new_node (const void *elem, size_t obj_size)
 {
     assert (elem != nullptr && "invalid pointer");
     assert (obj_size != 0 && "invalid size");
@@ -321,12 +319,14 @@ static tree::node_t *new_node (const void *elem, size_t obj_size)
 }
 
 // ----------------------------------------------------------------------------
+// PRIVATE SECTION
+// ----------------------------------------------------------------------------
 
 static void dfs_recursion (tree::node_t *node, tree::walk_f pre_exec,  void *pre_param,
                                                tree::walk_f in_exec,   void *in_param,
                                                tree::walk_f post_exec, void *post_param)
 {
-    assert (node      != nullptr && "invalid pointer");
+    assert (node != nullptr && "invalid pointer");
 
     if (pre_exec != nullptr)
     {
@@ -442,14 +442,35 @@ static void node_load (tree::node_t *node, void *params)
     {
         node->left  = nullptr;
         node->right = nullptr;
-        return;
     }
     else
     {
-        ungetc ('{', stream);
-        node->left  = new_node (DEFAULT_NODE_VALUE, OBJ_SIZE);
-        node->right = new_node (DEFAULT_NODE_VALUE, OBJ_SIZE);
+        node->left  = tree::new_node (DEFAULT_NODE_VALUE, OBJ_SIZE);
+        node->right = tree::new_node (DEFAULT_NODE_VALUE, OBJ_SIZE);
     }
 
+    ungetc (c, stream);
+
     SKIP_SPACES ();
+}
+
+// ----------------------------------------------------------------------------
+
+static void eat_closing_bracket (tree::node_t *node, void *params)
+{
+    assert (node   != nullptr && "invalid pointer");
+    assert (params != nullptr && "invalid pointer");
+
+    FILE *stream       = ((load_params *) params)->stream;
+    tree::tree_t *tree = ((load_params *) params)->tree;
+
+    char c = getc (stream);
+
+    SKIP_SPACES();
+
+    if (c != '}')
+    {
+        log (log::ERR, "Invalid dump: no closing bracket");
+        assert (0   && "invalid dump: no closing bracket");
+    }
 }
