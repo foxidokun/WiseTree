@@ -3,6 +3,6 @@
 
 #include "tree.h"
 
-void akinator (tree::tree_t *tree);
+void guess_mode (tree::tree_t *tree);
 
 #endif

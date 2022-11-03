@@ -30,7 +30,7 @@ static void add_unknown_object (tree::tree_t *tree, tree::node_t *bad_node);
 // PUBLIC SECTION
 // ----------------------------------------------------------------------------
 
-void akinator (tree::tree_t *tree)
+void guess_mode (tree::tree_t *tree)
 {
     assert (tree != nullptr && "invalid pointer");
     assert (tree->head_node != nullptr && "invalid tree");

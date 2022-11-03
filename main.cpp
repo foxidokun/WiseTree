@@ -7,33 +7,38 @@
 #include "tree.h"
 #include "wisetree.h"
 
-int strcmp_wrapper (const void *lhs, const void *rhs)
-{
-    return strcmp ((const char *) lhs, (const char *) rhs);
-}
+int strcmp_wrapper (const void *lhs, const void *rhs);
 
 int main ()
 {
-    FILE *lol  = fopen ("dump.txt", "r");
-    FILE *logs = fopen ("log.html", "w");
+    FILE *log_file = fopen ("log.html", "w");
+    FILE *dump_file = fopen ("dump.txt", "r");
 
-    set_log_stream (logs);
+    if (!log_file) fprintf (stderr, "Failed to open log file");
+
+    set_log_stream (log_file);
+
+    if (!dump_file) log (log::ERR, "Failed to open dump file");
 
     tree::tree_t tree = {};
     tree::ctor (&tree, OBJ_SIZE, strcmp_wrapper);
+    tree::load (&tree, dump_file);
+    fclose (dump_file);
 
-    tree::load (&tree, lol);
-
-    tree::store (&tree, lol);
     tree::graph_dump (&tree, "For lulz");
 
-    akinator (&tree);
+    guess_mode (&tree);
 
-    fclose (lol);
+    dump_file  = fopen ("dump.txt", "w");
+    if (!dump_file) log (log::ERR, "Failed to open dump file");
 
-    FILE *lol2  = fopen ("dump.txt", "w");
-
-    tree::store (&tree, lol2);
-
+    tree::store (&tree, dump_file);
+    
     tree::dtor (&tree);
+}
+
+
+int strcmp_wrapper (const void *lhs, const void *rhs)
+{
+    return strcmp ((const char *) lhs, (const char *) rhs);
 }
