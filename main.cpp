@@ -3,10 +3,9 @@
 #include <assert.h>
 
 #include "common.h"
-
 #include "lib/log.h"
-
 #include "tree.h"
+#include "wisetree.h"
 
 int strcmp_wrapper (const void *lhs, const void *rhs)
 {
