@@ -33,7 +33,10 @@ int main ()
 
     tree::graph_dump (&tree, "For lulz");
 
-    run_wisetree (&tree);
+    screen_t screen = {};
+    screen_ctor (&screen, stdout);
+
+    run_wisetree (&tree, &screen);
 
     dump_file  = fopen ("dump.txt", "w");
     if (!dump_file) log (log::ERR, "Failed to open dump file");

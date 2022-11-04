@@ -251,7 +251,7 @@ tree::tree_err_t tree::load (tree_t *tree, FILE *dump)
 
 // ----------------------------------------------------------------------------
 
-void tree::graph_dump (tree_t *tree, const char *reason_fmt, ...)
+int tree::graph_dump (tree_t *tree, const char *reason_fmt, ...)
 {
     assert (tree       != nullptr && "pointer can't be nullptr");
     assert (reason_fmt != nullptr && "pointer can't be nullptr");
@@ -266,7 +266,7 @@ void tree::graph_dump (tree_t *tree, const char *reason_fmt, ...)
     if (dump_file == nullptr)
     {
         log (log::ERR, "Failed to open dump file '%s'", filepath);
-        return;
+        return counter;
     }
 
     fprintf (dump_file, PREFIX);
@@ -304,6 +304,7 @@ void tree::graph_dump (tree_t *tree, const char *reason_fmt, ...)
     va_end (args);
 
     fflush (get_log_stream ());
+    return counter;
 }
 
 // ----------------------------------------------------------------------------

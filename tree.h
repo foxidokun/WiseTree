@@ -48,7 +48,7 @@ namespace tree
     void store (tree_t *tree, FILE *stream);
     tree::tree_err_t load (tree_t *tree, FILE *dump);
 
-    void graph_dump (tree_t *tree, const char *reason_fmt, ...);
+    int graph_dump (tree_t *tree, const char *reason_fmt, ...);
 
     tree::node_t *new_node (const void *elem, size_t obj_size);
 }

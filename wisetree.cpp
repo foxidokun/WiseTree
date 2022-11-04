@@ -4,48 +4,21 @@
 
 #include "common.h"
 #include "tree.h"
+#include "vn.h"
 #include "wisetree.h"
 
 // ----------------------------------------------------------------------------
 // CONST SECTION
 // ----------------------------------------------------------------------------
 
+#include "ascii_arts.h"
+
 #define I "\033[3m"
 #define D "\033[0m"
 
-const char WISE_TREE_ASCII[] = 
-"\t\t __      __.__                ___________                              \n"
-"\t\t/  \\    /  \\__| ______ ____   \\__    ___/______   ____   ____       \n"
-"\t\t\\   \\/\\/   /  |/  ___// __ \\    |    |  \\_  __ \\_/ __ \\_/ __ \\ \n"
-"\t\t \\        /|  |\\___ \\  ___/     |    |   |  | \\/\\  ___/\\  ___/   \n"
-"\t\t  \\__/\\  / |__/____  >\\___  >   |____|   |__|    \\___  >\\___  >   \n"
-"\t\t       \\/          \\/     \\/                         \\/     \\/    \n";
-
-const char ANON[21][125] = {
-"⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄",
-"⠄⠄⠄⠄⠄⠄⣀⣀⣤⣤⣴⣶⣶⣶⣶⣶⣶⣶⣶⣶⣶⣶⣶⣶⣦⣤⣤⣄⣀⡀⠄⠄⠄⠄⠄",
-"⠄⠄⠄⠄⣴⣿⣿⡿⣿⢿⣟⣿⣻⣟⡿⣟⣿⣟⡿⣟⣿⣻⣟⣿⣻⢿⣻⡿⣿⢿⣷⣆⠄⠄⠄",
-"⠄⠄⠄⢘⣿⢯⣷⡿⡿⡿⢿⢿⣷⣯⡿⣽⣞⣷⣻⢯⣷⣻⣾⡿⡿⢿⢿⢿⢯⣟⣞⡮⡀⠄⠄",
-"⠄⠄⠄⢸⢞⠟⠃⣉⢉⠉⠉⠓⠫⢿⣿⣷⢷⣻⣞⣿⣾⡟⠽⠚⠊⠉⠉⠉⠙⠻⣞⢵⠂⠄⠄",
-"⠄⠄⠄⢜⢯⣺⢿⣻⣿⣿⣷⣔⡄⠄⠈⠛⣿⣿⡾⠋⠁⠄⠄⣄⣶⣾⣿⡿⣿⡳⡌⡗⡅⠄⠄",
-"⠄⠄⠄⢽⢱⢳⢹⡪⡞⠮⠯⢯⡻⡬⡐⢨⢿⣿⣿⢀⠐⡥⣻⡻⠯⡳⢳⢹⢜⢜⢜⢎⠆⠄⠄",
-"⠄⠄⠠⣻⢌⠘⠌⡂⠈⠁⠉⠁⠘⠑⢧⣕⣿⣿⣿⢤⡪⠚⠂⠈⠁⠁⠁⠂⡑⠡⡈⢮⠅⠄⠄",
-"⠄⠄⠠⣳⣿⣿⣽⣭⣶⣶⣶⣶⣶⣺⣟⣾⣻⣿⣯⢯⢿⣳⣶⣶⣶⣖⣶⣮⣭⣷⣽⣗⠍⠄⠄",
-"⠄⠄⢀⢻⡿⡿⣟⣿⣻⣽⣟⣿⢯⣟⣞⡷⣿⣿⣯⢿⢽⢯⣿⣻⣟⣿⣻⣟⣿⣻⢿⣿⢀⠄⠄",
-"⠄⠄⠄⡑⡏⠯⡯⡳⡯⣗⢯⢟⡽⣗⣯⣟⣿⣿⣾⣫⢿⣽⠾⡽⣺⢳⡫⡞⡗⡝⢕⠕⠄⠄⠄",
-"⠄⠄⠄⢂⡎⠅⡃⢇⠇⠇⣃⣧⡺⡻⡳⡫⣿⡿⣟⠞⠽⠯⢧⣅⣃⠣⠱⡑⡑⠨⢐⢌⠂⠄⠄",
-"⠄⠄⠄⠐⠼⣦⢀⠄⣶⣿⢿⣿⣧⣄⡌⠂⠢⠩⠂⠑⣁⣅⣾⢿⣟⣷⠦⠄⠄⡤⡇⡪⠄⠄⠄",
-"⠄⠄⠄⠄⠨⢻⣧⡅⡈⠛⠿⠿⠿⠛⠁⠄⢀⡀⠄⠄⠘⠻⠿⠿⠯⠓⠁⢠⣱⡿⢑⠄⠄⠄⠄",
-"⠄⠄⠄⠄⠈⢌⢿⣷⡐⠤⣀⣀⣂⣀⢀⢀⡓⠝⡂⡀⢀⢀⢀⣀⣀⠤⢊⣼⡟⡡⡁⠄⠄⠄⠄",
-"⠄⠄⠄⠄⠄⠈⢢⠚⣿⣄⠈⠉⠛⠛⠟⠿⠿⠟⠿⠻⠻⠛⠛⠉⠄⣠⠾⢑⠰⠈⠄⠄⠄⠄⠄",
-"⠄⠄⠄⠄⠄⠄⠄⠑⢌⠿⣦⡡⣱⣸⣸⣆⠄⠄⠄⣰⣕⢔⢔⠡⣼⠞⡡⠁⠁⠄⠄⠄⠄⠄⠄",
-"⠄⠄⠄⠄⠄⠄⠄⠄⠄⠑⢝⢷⣕⡷⣿⡿⠄⠄⠠⣿⣯⣯⡳⡽⡋⠌⠄⠄⠄⠄⠄⠄⠄⠄⠄",
-"⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠙⢮⣿⣽⣯⠄⠄⢨⣿⣿⡷⡫⠃⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄",
-"⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠘⠙⠝⠂⠄⢘⠋⠃⠁⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄",
-"⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄"
-};
-
 const int INP_BUF_SIZE = 20;
+const int CMD_LEN      = 64;
+const int DELAY_USEC   = 2 * 1000000;
 
 // ----------------------------------------------------------------------------
 // DEF SECTION
@@ -53,7 +26,11 @@ const int INP_BUF_SIZE = 20;
 
 static void get_input (char *line);
 
-static void add_unknown_object (tree::tree_t *tree, tree::node_t *bad_node);
+static void ask_mode_art (screen_t *screen);
+
+static void add_unknown_object (tree::tree_t *tree, tree::node_t *bad_node, screen_t *screen);
+
+static void wait ();
 
 static bool definition_pre (tree::node_t *node, void *param, bool cont);
 static bool definition_post (tree::node_t *node, void *param, bool cont);
@@ -62,16 +39,20 @@ static bool definition_post (tree::node_t *node, void *param, bool cont);
 // PUBLIC SECTION
 // ----------------------------------------------------------------------------
 
-void guess_mode (tree::tree_t *tree)
+void guess_mode (tree::tree_t *tree, screen_t *screen)
 {
     assert (tree != nullptr && "invalid pointer");
     assert (tree->head_node != nullptr && "invalid tree");
 
     tree::node_t *node = tree->head_node;
 
-    printf (I "\nВопросик принят на карандаш, работаем...\n" D);
-    usleep (5 * 1000000);
-    printf (I "Кабанчик вернулся и доложил, что вам придется поотвечать на вопросики. Начнем\n" D);
+    put_line (screen, "Вопросик принят на карандаш, работаем...");
+    render   (screen, render_mode_t::MIKU);
+
+    usleep (DELAY_USEC);
+
+    put_line (screen, "Кабанчик вернулся и доложил, что вам придется поотвечать на вопросики. Начнем");
+    put_line (screen, "");
 
     char input[INP_BUF_SIZE];
     int n_quest = 0;    
@@ -80,7 +61,9 @@ void guess_mode (tree::tree_t *tree)
     {
         n_quest++;
 
-        printf ("Вопрос #%d: %s?\n (да/нет): ", n_quest, (char *) node->value);
+        put_line (screen, "Вопроc #%d: %s? (да/нет) ", n_quest, (char *) node->value);
+        render   (screen, render_mode_t::MIKU);
+
         get_input (input);
 
         if (strcasecmp (input, "да") == 0)
@@ -88,7 +71,9 @@ void guess_mode (tree::tree_t *tree)
             node = node->left;
             if (node == nullptr)
             {
-                printf (I "Лол, а сам не мог?\n" D);
+                put_line (screen, "Лол, а сам ты не мог этого понять?");
+                render (screen, render_mode_t::ANON);
+                wait ();
                 break;
             }
         }
@@ -96,8 +81,10 @@ void guess_mode (tree::tree_t *tree)
         {
             if (node->right == nullptr)
             {
-                add_unknown_object (tree, node);
-                printf (I "Не ну ля такое не считается\n" D);
+                add_unknown_object (tree, node, screen);
+                put_line (screen, "Не ну ля такое не считается");
+                render (screen, render_mode_t::ANON);
+                wait ();
                 break;
             }
 
@@ -108,85 +95,86 @@ void guess_mode (tree::tree_t *tree)
 
 // ----------------------------------------------------------------------------
 
-void definition_mode (tree::tree_t *tree)
+void definition_mode (tree::tree_t *tree, screen_t *screen)
 {
     assert (tree != nullptr && "invalid pointer");
     assert (tree->head_node != nullptr && "invalid tree");
 
     char input[OBJ_SIZE+1] = "";
 
-    printf (I "Ну, пирожок, что же ты хочешь узнать?\n" D);
-    printf (I "Ваш жалкий объект: " D);
+    put_line (screen, "Ну, пирожок, что же ты хочешь узнать?");
+    put_line (screen, "");
+    put_line (screen, "Ваш жалкий объект: ");
+    render   (screen, render_mode_t::ANON);
+
     get_input (input);
 
-    if (tree::dfs_exec (tree, definition_pre, input, 
-                                nullptr,        nullptr,
-                                definition_post, input))
+    if (tree::dfs_exec (tree, definition_pre,    input, 
+                                nullptr,         nullptr,
+                                definition_post, screen))
     {
-        printf (I "Я такого не знаю, иди к тете Гале\n" D);
+        put_line (screen, "Я такого не знаю, иди к тете Гале");
+        render (screen, render_mode_t::ANON);
+        wait ();
     }
     else
     {
-        printf (I "\nЯ рад что ты хотя бы пытаешься что-то узнать\n" D);
+        put_line (screen, "");
+        put_line (screen, "Я рад что ты хотя бы изображаешь попытки что-то узнать");
+        render (screen, render_mode_t::ANON);
+        wait ();
     }
 }
 
 // ----------------------------------------------------------------------------
 
-void run_wisetree (tree::tree_t *tree)
+void dump_mode (tree::tree_t *tree, screen_t *screen)
+{
+    assert (tree != nullptr && "invalid pointer");
+
+    int dump_num = tree::graph_dump (tree, "Dump mode asked");
+
+    char cmd[CMD_LEN] = "";
+    sprintf (cmd, "xdg-open dump/%d.grv.png", dump_num);
+
+    system (cmd);
+}
+
+// ----------------------------------------------------------------------------
+
+void run_wisetree (tree::tree_t *tree, screen_t *screen)
 {
     assert (tree != nullptr && "invalid pointer");
     assert (tree->head_node != nullptr && "invalid tree");
 
     printf (WISE_TREE_ASCII);
-
-    printf ("\n\n");
-
-    printf ("%s                                                  \n", ANON[0]);
-    printf ("%s                                                  \n", ANON[1]);
-    printf ("%s                                                  \n", ANON[2]);
-    printf ("%s                                                  \n", ANON[3]);
-    printf ("%s                                                  \n", ANON[4]);
-    printf ("%s                                                  \n", ANON[5]);
-    printf ("%s       ###########################################\n", ANON[6]);
-    printf ("%s       #     Выберите режим Мудрого Дерева       #\n", ANON[7]);
-    printf ("%s       #                                         #\n", ANON[8]);
-    printf ("%s       # 1) Интерактивный диалог с просветленным #\n", ANON[9]);
-    printf ("%s       # 2) Получение справки в лицо             #\n", ANON[10]);
-    printf ("%s       # 3) Различие между объектами             #\n", ANON[11]);
-    printf ("%s       # 4) Графический дамп                     #\n", ANON[12]);
-    printf ("%s       ###########################################\n", ANON[13]);
-    printf ("%s                                                  \n", ANON[14]);
-    printf ("%s                                                  \n", ANON[15]);
-    printf ("%s                                                  \n", ANON[16]);
-    printf ("%s                                                  \n", ANON[17]);
-    printf ("%s                                                  \n", ANON[18]);
-    printf ("%s                                                  \n", ANON[19]);
-    printf ("%s                                                  \n", ANON[20]);
+    usleep (DELAY_USEC);
 
     char input[OBJ_SIZE+1] = "";
 
     while (true)
     {
-        printf ("Выбранный режим: ");
+        ask_mode_art (screen);
 
         get_input (input);
 
         if (strcasecmp (input, "1") == 0)
         {
-            guess_mode (tree);
-
-            break;
+            guess_mode (tree, screen);
         }
         else if (strcasecmp (input, "2") == 0)
         {
-            definition_mode (tree);
-
-            break;
+            definition_mode (tree, screen);
+        }
+        else if (strcasecmp (input, "4") == 0)
+        {
+            dump_mode (tree, screen);
         }
         else
         {
-            printf (I "Че?\n" D);
+            put_line (screen, "Че? Миша, давай по новой");
+            render (screen, render_mode_t::ANON);
+            wait ();
         }
     }
 }
@@ -195,19 +183,22 @@ void run_wisetree (tree::tree_t *tree)
 // STATIC SECTION
 // ----------------------------------------------------------------------------
 
-static void add_unknown_object (tree::tree_t *tree, tree::node_t *bad_node)
+static void add_unknown_object (tree::tree_t *tree, tree::node_t *bad_node, screen_t *screen)
 {
     assert (tree     != nullptr && "invalid pointer");
     assert (bad_node != nullptr && "invalid pointer");
 
     char buf[OBJ_SIZE + 1];
 
-    printf (I "Ну, гений мысли, и что же ты загадал?\n" D);
+    put_line (screen, "Ну, гений мысли, и что же ты загадал?");
+    render (screen, render_mode_t::ANON);
     get_input (buf);
 
     tree::node_t *good_node  = tree::new_node (buf, OBJ_SIZE);
 
-    printf (I "Ох, дружок, а сформулировать чем это отличается от '%s' сможешь то?\nЭто ... " D, (char *) bad_node->value);
+    put_line (screen, "Ох, дружок, а сформулировать чем это отличается от '%s' сможешь то?", (char *) bad_node->value);
+    put_line (screen, "Это...");
+    render   (screen, render_mode_t::ANON);
     get_input (buf);
     
     tree::node_t *new_bad_node  = tree::new_node (bad_node->value, OBJ_SIZE);
@@ -249,8 +240,29 @@ static bool definition_post (tree::node_t *node, void *param, bool cont)
 
     if (!cont)
     {
-        printf ("Свойство: %s\n", (char *) node->value);
+        put_line ((screen_t *) param, "Свойство: %s", (char *) node->value);
     }
 
     return true;
+}
+
+// ----------------------------------------------------------------------------
+
+static void ask_mode_art (screen_t *screen)
+{
+    put_line (screen, "    Выберите режим Мудрого Дерева      ");
+    put_line (screen, "                                       ");
+    put_line (screen, "1) Интерактивный диалог с просветленным");
+    put_line (screen, "2) Получение справки в лицо            ");
+    put_line (screen, "3) Различие между объектами            ");
+    put_line (screen, "4) Графический дамп                    ");
+
+    render (screen, render_mode_t::ANON);
+}
+
+// ----------------------------------------------------------------------------
+
+static void wait ()
+{
+    getchar ();
 }
