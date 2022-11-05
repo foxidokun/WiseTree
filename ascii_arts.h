@@ -1,4 +1,4 @@
-const char MIKU[32][300] = 
+const char MIKU[32][200] = 
 {
 "                                            ██████          ", 
 "            ██████                    ████▒▒████            ",
@@ -35,7 +35,7 @@ const char MIKU[32][300] =
 };
 
 
-const char ANON[32][300] = 
+const char ANON[32][200] = 
 {
 "                                                            ",
 "                           ████████████████                 ",
