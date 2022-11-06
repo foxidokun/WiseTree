@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 const int LINE_BYTE_SIZE = 256;
-const int MAX_LINES      = 21;
+const int MAX_LINES      = 64;
 
 enum class render_mode_t
 {
@@ -25,5 +25,6 @@ void render (screen_t *screen, render_mode_t mode);
 
 void put_line (screen_t *screen, const char *fmt, ...);
 void put_text (screen_t *screen, const char *fmt, ...);
+void newline  (screen_t *screen);
 
 #endif

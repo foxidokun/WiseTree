@@ -2,6 +2,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "lib/log.h"
 #include "common.h"
 #include "tree.h"
 #include "vn.h"
@@ -22,10 +23,16 @@ const int MAX_HEIGHT   = 64;
 // TYPE SECTION
 // ----------------------------------------------------------------------------
 
+struct edge_info_t
+{
+    tree::node_t *node;
+    bool is_true;
+};
+
 struct node_path
 {
     unsigned int size               = 0;
-    tree::node_t *stack[MAX_HEIGHT] = {};
+    edge_info_t stack[MAX_HEIGHT]  = {};
 };
 
 
@@ -42,7 +49,7 @@ static void add_unknown_object (tree::tree_t *tree, tree::node_t *bad_node, scre
 static void wait ();
 
 static bool compare_node (tree::node_t *node, void *param, bool cont);
-static bool definition_post (tree::node_t *node, void *param, bool cont);
+static void print_properties (screen_t *screen, const node_path *path);
 
 static bool get_node_paths (tree::tree_t *tree, screen_t *screen,
                             node_path *path_one, node_path *path_two,
@@ -129,9 +136,11 @@ void definition_mode (tree::tree_t *tree, screen_t *screen)
 
     get_input (input);
 
-    if (tree::dfs_exec (tree, compare_node,    input, 
-                                nullptr,         nullptr,
-                                definition_post, screen))
+    node_path path = {};
+
+    if (tree::dfs_exec (tree, compare_node, input,
+                          nullptr, nullptr, 
+                          remember_node, &path))
     {
         put_line (screen, "Я такого не знаю, иди к тете Гале");
         render (screen, render_mode_t::ANON);
@@ -139,6 +148,8 @@ void definition_mode (tree::tree_t *tree, screen_t *screen)
     }
     else
     {
+        print_properties (screen, &path);
+
         put_line (screen, "");
         put_line (screen, "Я рад что ты хотя бы изображаешь попытки что-то узнать");
         render (screen, render_mode_t::ANON);
@@ -173,17 +184,14 @@ void diff_mode (tree::tree_t *tree, screen_t *screen)
 
     put_line (screen, "Сейчас вас попросят ввести два стула");
     render (screen, render_mode_t::MIKU);
-
     wait ();
 
     put_line (screen, "Введите первый");
     render (screen, render_mode_t::ANON);
-
     get_input (obj_one);    
 
     put_line (screen, "Введите второй");
     render (screen, render_mode_t::ANON);
-    
     get_input (obj_two);    
 
     node_path path_one = {};
@@ -231,6 +239,11 @@ void run_wisetree (tree::tree_t *tree, screen_t *screen)
         }
         else if (strcasecmp (input, "5") == 0)
         {
+            FILE *dump_file  = fopen (DUMP_FILE, "w");
+            if (!dump_file) { log (log::ERR, "Failed to open dump file"); return; }
+
+            tree::store (tree, dump_file);
+            fclose (dump_file);
             return;
         }
         else
@@ -299,21 +312,6 @@ static bool compare_node (tree::node_t *node, void *param, bool cont)
 
 // ----------------------------------------------------------------------------
 
-static bool definition_post (tree::node_t *node, void *param, bool cont)
-{
-    assert (node  != nullptr && "invalid pointer");
-    assert (param != nullptr && "invalid pointer");
-
-    if (!cont)
-    {
-        put_line ((screen_t *) param, "Свойство: %s", (char *) node->value);
-    }
-
-    return true;
-}
-
-// ----------------------------------------------------------------------------
-
 static bool remember_node (tree::node_t *node, void *param, bool cont)
 {
     assert (node  != nullptr && "invalid pointer");
@@ -323,7 +321,24 @@ static bool remember_node (tree::node_t *node, void *param, bool cont)
 
     if (!cont)
     {
-        path->stack[path->size] = node;
+        path->stack[path->size].node = node;
+
+        if (path->size > 0)
+        {
+            if (path->stack[path->size-1].node == node->left)
+            {
+                path->stack[path->size].is_true = true;
+            }
+            else
+            {
+                path->stack[path->size].is_true = false;
+            }
+        }
+        else /*path->size == 0*/
+        {
+            path->stack[path->size].is_true = true;
+        }
+
         path->size++;
     }
 
@@ -367,10 +382,17 @@ static bool get_node_paths (tree::tree_t *tree, screen_t *screen,
 
 // ----------------------------------------------------------------------------
 
+#define PUT_NO_IF_NOT(val)              \
+{                                       \
+    if (val)   put_text (screen, "");   \
+    else       put_text (screen, "¬");  \
+}
+
 static void print_diff (screen_t *screen, const node_path *one, const node_path *two)
 {
-    assert (one != nullptr && "invalid pointer");
-    assert (two != nullptr && "invalid pointer");
+    assert (screen != nullptr && "invalid pointer");
+    assert (one    != nullptr && "invalid pointer");
+    assert (two    != nullptr && "invalid pointer");
     assert (one->size > 0 && "diff for not found value");
     assert (two->size > 0 && "diff for not found value");
 
@@ -385,9 +407,12 @@ static void print_diff (screen_t *screen, const node_path *one, const node_path 
 
     put_line (screen, "Ну, у этих объектов есть сходства. Например, они оба:");
 
-    while (one->stack[indx_one] == two->stack[indx_two])
+    while (one->stack[indx_one].node    == two->stack[indx_two].node && 
+           one->stack[indx_one].is_true == two->stack[indx_two].is_true )
     {
-        put_line (screen, "%s", one->stack[indx_one]->value);
+        PUT_NO_IF_NOT (one->stack[indx_one].is_true);
+        
+        put_line (screen, "%s", one->stack[indx_one].node->value);
         indx_one--;
         indx_two--;
 
@@ -400,30 +425,54 @@ static void print_diff (screen_t *screen, const node_path *one, const node_path 
     if (indx_one >= 0 || indx_two >= 0)
     {
         put_line (screen, "Однако, они все таки не одинаковы");
-     
         put_line (screen, "");
 
         if (indx_one >= 0)
         {
             put_line (screen, "Так, например, первый");
-
             while (indx_one >= 0)
             {
-                put_line (screen, "%s", one->stack[indx_one--]->value);
+                PUT_NO_IF_NOT (one->stack[indx_one].is_true);
+                put_line (screen, "%s", one->stack[indx_one].node->value);
+                indx_one--;
             }
-
             put_line (screen, "");
         }
 
         if (indx_two >= 0)
         {
             put_line (screen, "Второй отличается наличием");
+            put_line (screen, "");
 
             while (indx_two >= 0)
             {
-                put_line (screen, "%s", two->stack[indx_two--]->value);
+                PUT_NO_IF_NOT (two->stack[indx_two].is_true);
+                put_line (screen, "%s", two->stack[indx_two].node->value);
+                indx_two--;
             }
         }
+    }
+
+    render (screen, render_mode_t::ANON);
+    wait ();
+}
+
+// ----------------------------------------------------------------------------
+
+static void print_properties (screen_t *screen, const node_path *path)
+{
+    assert (screen != nullptr && "invalid pointer");
+    assert (path   != nullptr && "invalid pointer");
+    assert (path->size > 0 && "properties for not found node");
+
+    put_line (screen, "Тащемта, свойства данный объект не rocket science");
+    put_line (screen, "И обладает понятными свойствами:");
+    put_line (screen, "");
+
+    for (int indx = (int) path->size - 1; indx >= 0; indx--)
+    {
+        PUT_NO_IF_NOT (path->stack[indx].is_true);
+        put_line (screen, "%s", path->stack[indx].node->value);
     }
 
     render (screen, render_mode_t::ANON);

@@ -59,10 +59,13 @@ void put_line (screen_t *screen, const char *fmt, ...)
     assert (screen && "invalid pointer");
     assert (fmt    && "invalid pointer");
 
+    char buf[LINE_LEN] = "";
+
     va_list args;
     va_start (args, fmt);
 
-    vsprintf (screen->lines[screen->n_lines], fmt, args);
+    vsprintf (buf, fmt, args);
+    strcat (screen->lines[screen->n_lines], buf);
     screen->n_lines++;
 
     va_end (args);
@@ -130,6 +133,10 @@ void render (screen_t *screen, render_mode_t mode)
         tts_run (screen);
     #endif
 
+    for (unsigned int n = 0; n < screen->n_lines; ++n)
+    {
+        screen->lines[n][0] = '\0';
+    }
     screen->n_lines = 0;
 }
 

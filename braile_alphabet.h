@@ -141,5 +141,7 @@ BR_LETTER ("#",  "⠼")
 BR_LETTER ("/",  "⠌") 
 BR_LETTER (":",  "⠒") 
 BR_LETTER ("'",  "⠄") 
+BR_LETTER ("!",  "⠖") 
 
 BR_LETTER ("&",  "&") 
+BR_LETTER ("¬",  "¬") 

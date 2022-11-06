@@ -12,7 +12,7 @@ int strcmp_wrapper (const void *lhs, const void *rhs);
 int main ()
 {
     FILE *log_file = fopen ("log.html", "w");
-    FILE *dump_file = fopen ("dump.txt", "r");
+    FILE *dump_file = fopen (DUMP_FILE, "r");
 
     if (!log_file) fprintf (stderr, "Failed to open log file");
 
@@ -37,11 +37,6 @@ int main ()
     screen_ctor (&screen, stdout);
 
     run_wisetree (&tree, &screen);
-
-    dump_file  = fopen ("dump.txt", "w");
-    if (!dump_file) log (log::ERR, "Failed to open dump file");
-
-    tree::store (&tree, dump_file);
 
     tree::dtor (&tree);
 }
