@@ -135,7 +135,7 @@ tree::tree_err_t tree::insert_left  (tree_t *tree, node_t *node, const void *ele
     assert (node != nullptr && "inVALid poointer");
     assert (elem != nullptr && "inVALid poointer");
 
-    assert (node->left == nullptr && "cringe bro");
+    assert (node->left == nullptr && "left node already exists");
 
     node_t *allocated_node = new_node (elem, tree->obj_size); 
     if (allocated_node == nullptr) { return OOM; }
@@ -153,7 +153,7 @@ tree::tree_err_t tree::insert_right  (tree_t *tree, node_t *node, const void *el
     assert (node != nullptr && "inVALid poointer");
     assert (elem != nullptr && "inVALid poointer");
 
-    assert (node->right == nullptr && "cringe bro");
+    assert (node->right == nullptr && "right node already exists");
 
     node_t *allocated_node = new_node (elem, tree->obj_size); 
     if (allocated_node == nullptr) { return OOM; }
@@ -435,7 +435,7 @@ static bool node_load (tree::node_t *node, void *params, bool cont)
         }
 
         int i = 0;
-        for (; i <= OBJ_SIZE; ++i)
+        for (; i < OBJ_SIZE; ++i)
         {
             c = getc (stream);
 

@@ -14,7 +14,7 @@
 #include "ascii_arts.h"
 
 const int INP_BUF_SIZE = 20;
-const int CMD_LEN      = 64;
+const int CMD_LEN      = 100;
 const int DELAY_USEC   = 2 * 1000000;
 const int MAX_HEIGHT   = 64;
 
@@ -77,8 +77,6 @@ void guess_mode (tree::tree_t *tree, screen_t *screen)
 
     while (true)
     {
-        n_quest++;
-
         put_line (screen, "Вопрос #%d: %s? (да/нет) ", n_quest, (char *) node->value);
         render   (screen, render_mode_t::MIKU);
 
@@ -86,10 +84,12 @@ void guess_mode (tree::tree_t *tree, screen_t *screen)
 
         if (strcasecmp (input, "да") == 0)
         {
+            n_quest++;
+
             node = node->left;
             if (node == nullptr)
             {
-                put_line (screen, "Лол, а сам ты не мог этого понять?");
+                put_line (screen, "Иди-ка ты K&R читать");
                 render (screen, render_mode_t::ANON);
                 wait ();
                 break;
@@ -97,10 +97,12 @@ void guess_mode (tree::tree_t *tree, screen_t *screen)
         }
         else if (strcasecmp (input, "нет") == 0)
         {
+            n_quest++;
+
             if (node->right == nullptr)
             {
                 add_unknown_object (tree, node, screen);
-                put_line (screen, "Не ну ля такое не считается");
+                put_line (screen, "Не ну такое не считается");
                 render (screen, render_mode_t::ANON);
                 wait ();
                 break;
@@ -122,7 +124,7 @@ void definition_mode (tree::tree_t *tree, screen_t *screen)
 
     put_line (screen, "Ну, пирожок, что же ты хочешь узнать?");
     put_line (screen, "");
-    put_line (screen, "Ваш жалкий объект: ");
+    put_line (screen, "Ваша жалкая ошибка: ");
     render   (screen, render_mode_t::ANON);
 
     get_input (input);
@@ -227,6 +229,10 @@ void run_wisetree (tree::tree_t *tree, screen_t *screen)
         {
             dump_mode (tree, screen);
         }
+        else if (strcasecmp (input, "5") == 0)
+        {
+            return;
+        }
         else
         {
             put_line (screen, "Че? Миша, давай по новой");
@@ -253,15 +259,14 @@ static void add_unknown_object (tree::tree_t *tree, tree::node_t *bad_node, scre
 
     tree::node_t *good_node  = tree::new_node (buf, OBJ_SIZE);
 
-    put_line (screen, "Ох, дружок, а сформулировать чем это");
-    put_line (screen, "отличается от '%s' сможешь то?", (char *) bad_node->value);
+    put_line (screen, "Ох, дружок, а сформулировать чем это отличается от ");
+    put_line (screen, "'%s' сможешь то?", (char *) bad_node->value);
     put_line (screen, "");
-    put_line (screen, "Это...");
+    put_line (screen, "...");
     render   (screen, render_mode_t::ANON);
     get_input (buf);
     
     tree::node_t *new_bad_node  = tree::new_node (bad_node->value, OBJ_SIZE);
-
     tree::change_value (tree, bad_node, buf);
 
     bad_node->left  = good_node;
@@ -325,6 +330,8 @@ static bool remember_node (tree::node_t *node, void *param, bool cont)
     return true;
 }
 
+// ----------------------------------------------------------------------------
+
 static bool get_node_paths (tree::tree_t *tree, screen_t *screen,
                             node_path *path_one, node_path *path_two,
                             char *obj_one, char *obj_two)
@@ -364,9 +371,11 @@ static void print_diff (screen_t *screen, const node_path *one, const node_path 
 {
     assert (one != nullptr && "invalid pointer");
     assert (two != nullptr && "invalid pointer");
+    assert (one->size > 0 && "diff for not found value");
+    assert (two->size > 0 && "diff for not found value");
 
-    int indx_one = one->size - 1;
-    int indx_two = two->size - 1;
+    int indx_one = (int) one->size - 1;
+    int indx_two = (int) two->size - 1;
 
     put_line (screen, "Чтож, если ты не способен отличить");
     put_line (screen, "эти два стула, я тебе помогу");
@@ -431,6 +440,7 @@ static void ask_mode (screen_t *screen)
     put_line (screen, "2) Получение справки в лицо            ");
     put_line (screen, "3) Различие между объектами            ");
     put_line (screen, "4) Графический дамп                    ");
+    put_line (screen, "5) Выйди и сохрани                     ");
 
     render (screen, render_mode_t::ANON);
 }

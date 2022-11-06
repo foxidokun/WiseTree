@@ -10,27 +10,43 @@
 #include "ascii_arts.h"
 
 // ----------------------------------------------------------------------------
+// CONFIG OPTIONS
+// ----------------------------------------------------------------------------
 
-#define VOICE
+// #define VOICE
 
+// ----------------------------------------------------------------------------
+// CONST & HEADER
 // ----------------------------------------------------------------------------
 
 const int N_LINES  = 32;
 const int LINE_LEN = 200;
-const int CMD_LEN  = 300;
-const int PORT     = 3015;
+const int CMD_LEN  = 400;
 
 #define I  "\033[3m"
 #define DC "\033[0m"
 
-static size_t utf8nlen(const char *str, size_t n);
+static void render_text_lines (const screen_t *screen, const char (*ascii_art)[LINE_LEN],
+                                                        unsigned int i, size_t max_len);
+static void tts_run (const screen_t *screen);
+
+static size_t utf8len (const char *str);
+static size_t max_utf8len (const char lines[][LINE_BYTE_SIZE], unsigned int n_lines);
+
 static void braile_translate (const char *inp, char *out);
 
+static void clear_screen (const screen_t *screen);
+
+#define PRINT(fmt, ...) fprintf (screen->stream, fmt, ##__VA_ARGS__)
+
+// ----------------------------------------------------------------------------
+// PUBLIC
 // ----------------------------------------------------------------------------
 
 void screen_ctor (screen_t *screen, FILE *stream)
 {
     assert (screen != nullptr && "invalid pointer");
+    assert (stream != nullptr && "invalid pointer");
 
     screen->n_lines = 0;
     screen->stream  = stream;
@@ -79,116 +95,131 @@ void render (screen_t *screen, render_mode_t mode)
     unsigned int i = 0;
     const char (*ascii_art)[LINE_LEN] = nullptr;
 
+    // Set ascii art
     if      (mode == render_mode_t::ANON)  ascii_art = ANON;
     else if (mode == render_mode_t::MIKU)  ascii_art = MIKU;
-    else     assert (0 && "invalid mode");
+    else    assert (0 && "unexpected mode");
 
-    size_t max_len = 0;
-    size_t cur_len = 0;
+    size_t max_len = max_utf8len (screen->lines, screen->n_lines);
+    char hashtag_line[LINE_LEN+4] = "";
+    memset (hashtag_line, '#', LINE_LEN+4);
 
-    for (unsigned int n = 0; n < screen->n_lines; ++n)
-    {
-        cur_len = utf8nlen (screen->lines[n], strlen (screen->lines[n]));
-        if (cur_len > max_len)
-        {
-            max_len = cur_len;
-        }
-    }
+    clear_screen (screen);
 
-    printf ("\033[2J\033[1;1H");
+    // Begin art block
+    for (; i < text_line_beg - 1; ++i) PRINT ("%s\n", ascii_art[i]);
+    //
 
-    for (; i < text_line_beg - 1; ++i) 
-    {
-        printf ("%s\n", ascii_art[i]);
-    }
-
-    printf ("%s\t", ascii_art[i]);
+    // Top # block
+    PRINT ("%s\t%.*s\n", ascii_art[i], (int) max_len+4, hashtag_line);
     i++;
 
-    for (size_t n = 0; n < max_len+4; ++n)
-    {
-        printf ("#");
-    }
-    printf ("\n");
+    // Text block
+    render_text_lines (screen, ascii_art, i, max_len);
+    i += screen->n_lines;
 
-    char buf[LINE_LEN*4] = "";
-
-    for (unsigned int j = 0; j < screen->n_lines; ++i, ++j)
-    {
-        printf ("%s\t# " I "%s " DC, ascii_art[i], screen->lines[j]);
-
-        cur_len = utf8nlen (screen->lines[j], strlen (screen->lines[j]));
-
-        for (size_t pos = cur_len; pos < max_len; ++pos)
-        {
-            printf (" ");
-        }
-        printf ("#\t");
-
-        braile_translate (screen->lines[j], buf);
-
-        printf ("%s\n", buf);
-    }
-
-    printf ("%s\t", ascii_art[i]);
+    // Bottom # block
+    PRINT ("%s\t%.*s\n", ascii_art[i], (int) max_len+4, hashtag_line);
     i++;
 
-    for (size_t n = 0; n < max_len + 4; ++n)
-    {
-        printf ("#");
-    }
-    
-    printf ("\n");
+    //Continue art block
+    for (; i < N_LINES; ++i)  PRINT ("%s\n", ascii_art[i]);
 
-    for (; i < N_LINES; ++i)
-    {
-        printf ("%s\n", ascii_art[i]);
-    }
-
-
-    char cmd[CMD_LEN] = "";
-
+    // Voice
     #ifdef VOICE
-        for (int n = 0; n < screen->n_lines; ++n)
-        {
-            sprintf (cmd, "echo '%s' | RHVoice-test -r 4000 -t 2000 -p evgeny", screen->lines[n]);
-            system (cmd);
-        }
+        tts_run (screen);
     #endif
 
     screen->n_lines = 0;
 }
 
 // ----------------------------------------------------------------------------
+// STATIC SECTION
+// ----------------------------------------------------------------------------
 
-static size_t utf8nlen (const char *str, size_t n) {
-  const char *t = str;
-  size_t length = 0;
+static void render_text_lines (const screen_t *screen, const char (*ascii_art)[LINE_LEN],
+                                                        unsigned int i, size_t max_len) 
+{
+    assert (screen    != nullptr && "invalid pointer");
+    assert (ascii_art != nullptr && "invalid pointer");
 
-  while ((size_t)(str - t) < n && '\0' != *str) {
-    if (0xf0 == (0xf8 & *str)) {
-      /* 4-byte utf8 code point (began with 0b11110xxx) */
-      str += 4;
-    } else if (0xe0 == (0xf0 & *str)) {
-      /* 3-byte utf8 code point (began with 0b1110xxxx) */
-      str += 3;
-    } else if (0xc0 == (0xe0 & *str)) {
-      /* 2-byte utf8 code point (began with 0b110xxxxx) */
-      str += 2;
-    } else { /* if (0x00 == (0x80 & *s)) { */
-      /* 1-byte ascii (began with 0b0xxxxxxx) */
-      str += 1;
+    char buf[LINE_LEN*4] = "";
+    size_t byte_size = 0;
+    size_t len       = 0;
+
+    for (unsigned int j = 0; j < screen->n_lines; ++i, ++j)
+    {
+        byte_size = strlen  (screen->lines[j]);
+        len       = utf8len (screen->lines[j]);
+
+        braile_translate (screen->lines[j], buf);
+        PRINT ("%s\t# " I "%-*s #\t%s\n" DC, ascii_art[i], (int) (byte_size + max_len - len),
+                                                                screen->lines[j], buf);
+    }
+}
+
+// ----------------------------------------------------------------------------
+
+static void tts_run (const screen_t *screen)
+{
+    assert (screen != nullptr && "invalid pointer");
+
+    char cmd[CMD_LEN] = "";
+
+    for (unsigned int n = 0; n < screen->n_lines; ++n)
+    {
+        sprintf (cmd, "echo '%s' | RHVoice-test -r 4000 -t 2000 -p evgeny", screen->lines[n]);
+        system (cmd);
+    }
+}
+
+// ----------------------------------------------------------------------------
+
+static size_t utf8len (const char *str) {
+    assert (str != nullptr && "invalid pointer");
+
+    size_t length = 0;
+
+    while (*str != '\0') {
+        if (0xf0 == (0xf8 & *str)) {
+            /* 4-byte utf8 code point (began with 0b11110xxx) */
+            str += 4;
+        } else if (0xe0 == (0xf0 & *str)) {
+            /* 3-byte utf8 code point (began with 0b1110xxxx) */
+            str += 3;
+        } else if (0xc0 == (0xe0 & *str)) {
+            /* 2-byte utf8 code point (began with 0b110xxxxx) */
+            str += 2;
+        } else { /* if (0x00 == (0x80 & *s)) { */
+            /* 1-byte ascii (began with 0b0xxxxxxx) */
+            str += 1;
+        }
+
+        length++;
     }
 
-    /* no matter the bytes we marched s forward by, it was
-     * only 1 utf8 codepoint */
-    length++;
-  }
+    return length;
+}
 
-  if ((size_t)(str - t) > n) {
-    length--;
-  }
-  return length;
+// ----------------------------------------------------------------------------
+
+static size_t max_utf8len (const char lines[][LINE_BYTE_SIZE], unsigned int n_lines)
+{
+    assert (lines != nullptr && "pointer can't be null");
+
+    size_t max_len = 0;
+    size_t cur_len = 0;
+
+    for (unsigned int n = 0; n < n_lines; ++n)
+    {
+        cur_len = utf8len (lines[n]);
+        if (cur_len > max_len)
+        {
+            max_len = cur_len;
+        }
+    }
+
+    return max_len;
 }
 
 // ----------------------------------------------------------------------------
@@ -210,95 +241,18 @@ static void braile_translate (const char *inp, char *out)
 
     while (*inp != '\0')
     {
-        BR_LETTER ("а",  "⠁")
-        BR_LETTER ("А",  "⠁")
-        BR_LETTER ("б",  "⠃")
-        BR_LETTER ("Б",  "⠃")
-        BR_LETTER ("в",  "⠺")
-        BR_LETTER ("В",  "⠺")
-        BR_LETTER ("г",  "⠛")
-        BR_LETTER ("Г",  "⠛")
-        BR_LETTER ("д",  "⠙")
-        BR_LETTER ("Д",  "⠙")
-        BR_LETTER ("е",  "⠑")
-        BR_LETTER ("Е",  "⠑")
-        BR_LETTER ("ж",  "⠚")
-        BR_LETTER ("Ж",  "⠚")
-        BR_LETTER ("з",  "⠵")
-        BR_LETTER ("З",  "⠵")
-        BR_LETTER ("и",  "⠊")
-        BR_LETTER ("И",  "⠊")
-        BR_LETTER ("й",  "⠯")
-        BR_LETTER ("Й",  "⠯")
-        BR_LETTER ("к",  "⠅")
-        BR_LETTER ("К",  "⠅")
-        BR_LETTER ("л",  "⠇")
-        BR_LETTER ("Л",  "⠇")
-        BR_LETTER ("м",  "⠍")
-        BR_LETTER ("М",  "⠍")
-        BR_LETTER ("н",  "⠝")
-        BR_LETTER ("Н",  "⠝")
-        BR_LETTER ("о",  "⠕")
-        BR_LETTER ("О",  "⠕")
-        BR_LETTER ("п",  "⠏")
-        BR_LETTER ("П",  "⠏")
-        BR_LETTER ("р",  "⠗")
-        BR_LETTER ("Р",  "⠗")
-        BR_LETTER ("с",  "⠎")
-        BR_LETTER ("С",  "⠎")
-        BR_LETTER ("т",  "⠞")
-        BR_LETTER ("Т",  "⠞")
-        BR_LETTER ("у",  "⠥")
-        BR_LETTER ("У",  "⠥")
-        BR_LETTER ("ф",  "⠋")
-        BR_LETTER ("Ф",  "⠋")
-        BR_LETTER ("х",  "⠓")
-        BR_LETTER ("Х",  "⠓")
-        BR_LETTER ("ц",  "⠉")
-        BR_LETTER ("Ц",  "⠉")
-        BR_LETTER ("ч",  "⠟")
-        BR_LETTER ("Ч",  "⠟")
-        BR_LETTER ("ш",  "⠱")
-        BR_LETTER ("Ш",  "⠱")
-        BR_LETTER ("щ",  "⠭")
-        BR_LETTER ("Щ",  "⠭")
-        BR_LETTER ("ъ",  "⠷")
-        BR_LETTER ("Ъ",  "⠷")
-        BR_LETTER ("ы",  "⠮")
-        BR_LETTER ("Ы",  "⠮")
-        BR_LETTER ("ь",  "⠾")
-        BR_LETTER ("Ь",  "⠾")
-        BR_LETTER ("э",  "⠪")
-        BR_LETTER ("Э",  "⠪")
-        BR_LETTER ("ю",  "⠳")
-        BR_LETTER ("Ю",  "⠳")
-        BR_LETTER ("я",  "⠫")
-        BR_LETTER ("Я",  "⠫")
-        BR_LETTER (".",  "⠲")
-        BR_LETTER (",",  "⠂")
-        BR_LETTER ("-",  "⠤") 
-        BR_LETTER ("(",  "⠣") 
-        BR_LETTER (")",  "⠜") 
-        BR_LETTER ("?",  "⠢") 
-        BR_LETTER (":",  ":") 
-        BR_LETTER ("#",  "#") 
-        BR_LETTER ("/",  "/") 
-        BR_LETTER ("0",  "⠚") 
-        BR_LETTER ("1",  "⠁") 
-        BR_LETTER ("2",  "⠃") 
-        BR_LETTER ("3",  "⠉") 
-        BR_LETTER ("4",  "⠙") 
-        BR_LETTER ("5",  "⠑") 
-        BR_LETTER ("6",  "⠋") 
-        BR_LETTER ("7",  "⠛") 
-        BR_LETTER ("8",  "⠓") 
-        BR_LETTER ("9",  "⠊") 
-        BR_LETTER (" ",  " ") 
-        BR_LETTER ("\t", " ")
+        #include  "braile_alphabet.h"
         /*else*/
         {
             fprintf (stderr, "Unexpected char in <%s> (%d)\n", inp, inp[0]);
             assert (0 && "Unexpected char");
         }  
     }
+}
+
+// ----------------------------------------------------------------------------
+
+static void clear_screen (const screen_t *screen)
+{
+    PRINT ("\033[2J\033[1;1H");
 }

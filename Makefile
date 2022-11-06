@@ -4,7 +4,7 @@ PROJ = tree
 BINDIR = bin
 ODIR = obj
 
-_DEPS = tree.h wisetree.h vn.h
+_DEPS = tree.h wisetree.h vn.h ascii_arts.h  braile_alphabet.h
 DEPS = $(patsubst %,./%,$(_DEPS))
 
 _OBJ = tree.o main.o wisetree.o vn.o

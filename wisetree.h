@@ -7,7 +7,7 @@
 void guess_mode (tree::tree_t *tree, screen_t *screen);
 void definition_mode (tree::tree_t *tree, screen_t *screen);
 void dump_mode (tree::tree_t *tree, screen_t *screen);
-void dump_mode (tree::tree_t *tree, screen_t *screen);
+void diff_mode (tree::tree_t *tree, screen_t *screen);
 
 void run_wisetree (tree::tree_t *tree, screen_t *screen);
 
