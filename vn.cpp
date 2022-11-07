@@ -40,6 +40,8 @@ static size_t utf8_get_n_symbols_size (const char *str, size_t n);
 
 static void braile_translate (const char *inp, char *out);
 
+static void put_text_general (char lines[][LINE_BYTE_SIZE], unsigned int *index, const char *buf);
+
 static void clear_console (const screen_t *screen);
 static void clear_lines   (screen_t *screen);
 
@@ -88,18 +90,7 @@ void put_text (screen_t *screen, const char *fmt, ...)
 
     vsprintf (buf, fmt, args);
 
-    ssize_t buf_len = utf8len (buf);
-    while (buf_len > 0)
-    {
-        size_t screen_free_len = CONSOLE_LEN - utf8len (screen->text_lines[screen->n_text_lines]);
-        utf8cat (screen->text_lines[screen->n_text_lines], buf, screen_free_len);
-        if (buf_len > CONSOLE_LEN)
-        {
-            screen->n_text_lines++;
-        }
-    }
-
-    buf_len -= CONSOLE_LEN;
+    put_text_general (screen->text_lines, &screen->n_text_lines, buf);
 
     va_end (args);
 }
@@ -142,22 +133,8 @@ void put_speak_text (screen_t *screen, const char *fmt, ...)
     va_start (args, fmt);
     vsprintf (buf, fmt, args);
 
-    ssize_t buf_len = utf8len (buf);
-    while (buf_len > 0)
-    {
-        size_t screen_free_len = CONSOLE_LEN - utf8len (screen->text_lines[screen->n_text_lines]);
-        utf8cat (screen->text_lines[screen->n_text_lines],   buf, screen_free_len);
-        utf8cat (screen->speak_lines[screen->n_speak_lines], buf, screen_free_len);
-
-        if (buf_len > screen_free_len)
-        {
-            screen->n_text_lines++;
-            screen->n_speak_lines++;
-            fprintf (stderr, "Crossing line");
-        }
-
-        buf_len -= utf8_get_n_symbols_size (buf, screen_free_len);
-    }
+    put_text_general (screen->text_lines,  &screen->n_text_lines,  buf);
+    put_text_general (screen->speak_lines, &screen->n_speak_lines, buf);
     
     va_end (args);
 }
@@ -225,6 +202,33 @@ static void render_text_lines (const screen_t *screen, const char (*ascii_art)[L
         braile_translate (screen->text_lines[j], buf);
         PRINT ("%s\t║ " I "%-*s ║\t%s\n" DC, ascii_art[i], (int) (byte_size + max_len - len),
                                                                 screen->text_lines[j], buf);
+    }
+}
+
+// ----------------------------------------------------------------------------
+
+static void put_text_general (char lines[][LINE_BYTE_SIZE], unsigned int *index, const char *buf)
+{
+    assert (lines != nullptr && "invalid pointer");
+    assert (index != nullptr && "invalid pointer");
+    assert (buf   != nullptr && "invalid pointer");
+
+    ssize_t buf_len  = utf8len (buf);
+    size_t buf_index = 0;
+
+    while (buf_len > 0)
+    {
+        size_t screen_free_len = CONSOLE_LEN - utf8len (lines[*index]);
+
+        utf8cat (lines[*index], buf + buf_index, screen_free_len);
+
+        if (buf_len > screen_free_len)
+        {
+            (*index)++;
+        }
+
+        buf_len   -= screen_free_len;
+        buf_index += utf8_get_n_symbols_size (buf, screen_free_len);
     }
 }
 
@@ -334,6 +338,8 @@ static size_t utf8_get_n_symbols_size (const char *str, size_t n)
 
         n--;
     }
+
+    return byte_size - 1; // delete '\0' character
 }
 
 // ----------------------------------------------------------------------------
