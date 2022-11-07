@@ -49,7 +49,7 @@ static void add_unknown_object (tree::tree_t *tree, tree::node_t *bad_node, scre
 static void wait ();
 
 static bool compare_node (tree::node_t *node, void *param, bool cont);
-static void print_properties (screen_t *screen, const node_path *path);
+static void print_properties (screen_t *screen, const node_path *path, size_t size);
 
 static bool get_node_paths (tree::tree_t *tree, screen_t *screen,
                             node_path *path_one, node_path *path_two,
@@ -84,8 +84,8 @@ void guess_mode (tree::tree_t *tree, screen_t *screen)
 
     while (true)
     {
-        put_line (screen, "Вопрос #%d: %s? (да/нет) ", n_quest, (char *) node->value);
-        render   (screen, render_mode_t::MIKU);
+        put_speak_line (screen, "Вопрос #%d: %s? (да/нет) ", n_quest, (char *) node->value);
+        render (screen, render_mode_t::MIKU);
 
         get_input (input);
 
@@ -96,7 +96,7 @@ void guess_mode (tree::tree_t *tree, screen_t *screen)
             node = node->left;
             if (node == nullptr)
             {
-                put_line (screen, "Иди-ка ты K&R читать");
+                put_speak_line (screen, "Иди-ка ты делом займись");
                 render (screen, render_mode_t::ANON);
                 wait ();
                 break;
@@ -109,7 +109,7 @@ void guess_mode (tree::tree_t *tree, screen_t *screen)
             if (node->right == nullptr)
             {
                 add_unknown_object (tree, node, screen);
-                put_line (screen, "Не ну такое не считается");
+                put_speak_line (screen, "Иди-ка ты делом займись");
                 render (screen, render_mode_t::ANON);
                 wait ();
                 break;
@@ -131,7 +131,7 @@ void definition_mode (tree::tree_t *tree, screen_t *screen)
 
     put_line (screen, "Ну, пирожок, что же ты хочешь узнать?");
     put_line (screen, "");
-    put_line (screen, "Ваша жалкая ошибка: ");
+    put_line (screen, "Ваша жалкий объект: ");
     render   (screen, render_mode_t::ANON);
 
     get_input (input);
@@ -148,9 +148,13 @@ void definition_mode (tree::tree_t *tree, screen_t *screen)
     }
     else
     {
-        print_properties (screen, &path);
-
+        put_line (screen, "Тащемта, данный объект не rocket science");
+        put_line (screen, "и обладает понятными свойствами:");
         put_line (screen, "");
+        print_properties (screen, &path, path.size);
+        render (screen, render_mode_t::ANON);
+        wait ();
+
         put_line (screen, "Я рад что ты хотя бы изображаешь попытки что-то узнать");
         render (screen, render_mode_t::ANON);
         wait ();
@@ -182,7 +186,7 @@ void diff_mode (tree::tree_t *tree, screen_t *screen)
     char obj_one[OBJ_SIZE + 1] = "";
     char obj_two[OBJ_SIZE + 1] = "";
 
-    put_line (screen, "Сейчас вас попросят ввести два стула");
+    put_line (screen, "Сейчас вас попросят выбрать два стула");
     render (screen, render_mode_t::MIKU);
     wait ();
 
@@ -281,9 +285,12 @@ static void add_unknown_object (tree::tree_t *tree, tree::node_t *bad_node, scre
     
     tree::node_t *new_bad_node  = tree::new_node (bad_node->value, OBJ_SIZE);
     tree::change_value (tree, bad_node, buf);
+    new_bad_node->present = true;
 
     bad_node->left  = good_node;
     bad_node->right = new_bad_node;
+
+    tree::graph_dump (tree, "Unknown object added");
 }
 
 // ----------------------------------------------------------------------------
@@ -382,13 +389,13 @@ static bool get_node_paths (tree::tree_t *tree, screen_t *screen,
 
 // ----------------------------------------------------------------------------
 
-#define PUT_NO_IF_NOT(val)              \
-{                                       \
-    if (val)   put_text (screen, "");   \
-    else       put_text (screen, "¬");  \
+#define PUT_NO_IF_NOT(val)               \
+{                                        \
+    if (val)   put_speak_text (screen, "");    \
+    else       put_speak_text (screen, "не "); \
 }
 
-static void print_diff (screen_t *screen, const node_path *one, const node_path *two)
+static void print_diff (screen_t *screen, const  node_path *one, const node_path *two)
 {
     assert (screen != nullptr && "invalid pointer");
     assert (one    != nullptr && "invalid pointer");
@@ -405,14 +412,19 @@ static void print_diff (screen_t *screen, const node_path *one, const node_path 
     render (screen, render_mode_t::ANON);
     wait ();
 
-    put_line (screen, "Ну, у этих объектов есть сходства. Например, они оба:");
+    if (one->stack[indx_one].node    == two->stack[indx_two].node && 
+        one->stack[indx_one].is_true == two->stack[indx_two].is_true)
+    {
+        put_line (screen, "Ну, у этих объектов есть сходства. Так, они оба");
+    }
 
     while (one->stack[indx_one].node    == two->stack[indx_two].node && 
            one->stack[indx_one].is_true == two->stack[indx_two].is_true )
     {
         PUT_NO_IF_NOT (one->stack[indx_one].is_true);
         
-        put_line (screen, "%s", one->stack[indx_one].node->value);
+        put_speak_line (screen, "%s, ", one->stack[indx_one].node->value);
+
         indx_one--;
         indx_two--;
 
@@ -430,26 +442,14 @@ static void print_diff (screen_t *screen, const node_path *one, const node_path 
         if (indx_one >= 0)
         {
             put_line (screen, "Так, например, первый");
-            while (indx_one >= 0)
-            {
-                PUT_NO_IF_NOT (one->stack[indx_one].is_true);
-                put_line (screen, "%s", one->stack[indx_one].node->value);
-                indx_one--;
-            }
+            print_properties (screen, one, (size_t) (indx_one + 1));
             put_line (screen, "");
         }
 
         if (indx_two >= 0)
         {
-            put_line (screen, "Второй отличается наличием");
-            put_line (screen, "");
-
-            while (indx_two >= 0)
-            {
-                PUT_NO_IF_NOT (two->stack[indx_two].is_true);
-                put_line (screen, "%s", two->stack[indx_two].node->value);
-                indx_two--;
-            }
+            put_line (screen, "Второй отличается тем, что он");
+            print_properties (screen, two, (size_t) (indx_two + 1));
         }
     }
 
@@ -459,31 +459,26 @@ static void print_diff (screen_t *screen, const node_path *one, const node_path 
 
 // ----------------------------------------------------------------------------
 
-static void print_properties (screen_t *screen, const node_path *path)
+static void print_properties (screen_t *screen, const node_path *path, size_t size)
 {
     assert (screen != nullptr && "invalid pointer");
     assert (path   != nullptr && "invalid pointer");
     assert (path->size > 0 && "properties for not found node");
 
-    put_line (screen, "Тащемта, свойства данный объект не rocket science");
-    put_line (screen, "И обладает понятными свойствами:");
-    put_line (screen, "");
-
-    for (int indx = (int) path->size - 1; indx >= 0; indx--)
+    for (int indx = (int) size - 1; indx > 0; indx--)
     {
         PUT_NO_IF_NOT (path->stack[indx].is_true);
-        put_line (screen, "%s", path->stack[indx].node->value);
+        put_speak_text (screen, "%s, ", path->stack[indx].node->value);
     }
 
-    render (screen, render_mode_t::ANON);
-    wait ();
+    put_speak_line (screen, "и, в конце концов, %s.", path->stack[0].node->value);
 }
 
 // ----------------------------------------------------------------------------
 
 static void ask_mode (screen_t *screen)
 {
-    put_line (screen, "    Выберите режим Мудрого Дерева      ");
+    put_speak_line (screen, "    Выберите режим Мудрого Дерева      ");
     put_line (screen, "                                       ");
     put_line (screen, "1) Интерактивный диалог с просветленным");
     put_line (screen, "2) Получение справки в лицо            ");

@@ -320,7 +320,8 @@ tree::node_t *tree::new_node (const void *elem, size_t obj_size)
     memcpy (node, &DEFAULT_NODE, sizeof (tree::node_t));
     memcpy (node + 1, elem, obj_size);
     
-    node->value = node + 1;
+    node->value   = node + 1;
+    node->present = false;
 
     return node;
 }
@@ -379,8 +380,8 @@ static bool node_codegen (tree::node_t *node, void *stream_void, bool)
 
     FILE *stream = (FILE *) stream_void;
 
-    fprintf (stream, "node_%p [label = \"%s | {l: %p | r: %p}\"]\n", node, (char *) node->value,
-                                                                    node->left, node->right);
+    fprintf (stream, "node_%p [label = \"%s | {l: %p | r: %p}\", fillcolor=\"%s\"]\n", node, (char *) node->value,
+                                                                    node->left, node->right, node->present ? "green" : "cyan");
 
     if (node->left != nullptr)
     {
@@ -451,6 +452,7 @@ static bool node_load (tree::node_t *node, void *params, bool cont)
     }
 
     tree::change_value (tree, node, buf);
+    node->present = true;
 
     while (c != '{' && c != '}')
     {

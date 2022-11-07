@@ -14,8 +14,10 @@ enum class render_mode_t
 
 struct screen_t
 {
-    unsigned int n_lines;
-    char lines[MAX_LINES][LINE_BYTE_SIZE];
+    unsigned int n_text_lines;
+    unsigned int n_speak_lines;
+    char text_lines[MAX_LINES][LINE_BYTE_SIZE];
+    char speak_lines[MAX_LINES][LINE_BYTE_SIZE];
     FILE *stream;
 };
 
@@ -26,5 +28,9 @@ void render (screen_t *screen, render_mode_t mode);
 void put_line (screen_t *screen, const char *fmt, ...);
 void put_text (screen_t *screen, const char *fmt, ...);
 void newline  (screen_t *screen);
+
+void speak (const char *phrase);
+void put_speak_line (screen_t *screen, const char *fmt, ...);
+void put_speak_text (screen_t *screen, const char *fmt, ...);
 
 #endif

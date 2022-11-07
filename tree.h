@@ -12,6 +12,7 @@ namespace tree
 
         node_t *left;
         node_t *right;
+        bool present;
     };
 
     struct tree_t
