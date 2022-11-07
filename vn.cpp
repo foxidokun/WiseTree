@@ -36,6 +36,7 @@ static void tts_run (const screen_t *screen);
 static size_t utf8len (const char *str);
 static size_t max_utf8len (const char lines[][LINE_BYTE_SIZE], unsigned int n_lines);
 static void utf8cat (char *dest, const char *src, size_t n);
+static size_t utf8_get_n_symbols_size (const char *str, size_t n);
 
 static void braile_translate (const char *inp, char *out);
 
@@ -155,7 +156,7 @@ void put_speak_text (screen_t *screen, const char *fmt, ...)
             fprintf (stderr, "Crossing line");
         }
 
-        buf_len -= screen_free_len;
+        buf_len -= utf8_get_n_symbols_size (buf, screen_free_len);
     }
     
     va_end (args);
@@ -305,6 +306,34 @@ static void utf8cat (char *dest, const char *src, size_t n) {
     }
 
     dest[0] = '\0';
+}
+
+// ----------------------------------------------------------------------------
+
+static size_t utf8_get_n_symbols_size (const char *str, size_t n)
+{
+    assert (str != nullptr && "invalid pointer");
+
+    size_t byte_size = 0;
+
+    while (n > 0)
+    {       
+        if (0xf0 == (0xf8 & *str)) {
+            /* 4-byte utf8 code point (began with 0b11110xxx) */
+            byte_size += 4;
+        } else if (0xe0 == (0xf0 & *str)) {
+            /* 3-byte utf8 code point (began with 0b1110xxxx) */
+            byte_size += 3;
+        } else if (0xc0 == (0xe0 & *str)) {
+            /* 2-byte utf8 code point (began with 0b110xxxxx) */
+            byte_size += 2;
+        } else { /* if (0x00 == (0x80 & *s)) { */
+            /* 1-byte ascii (began with 0b0xxxxxxx) */
+            byte_size += 1;            
+        }
+
+        n--;
+    }
 }
 
 // ----------------------------------------------------------------------------
