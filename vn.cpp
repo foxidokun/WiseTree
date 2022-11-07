@@ -37,9 +37,11 @@ static size_t utf8len (const char *str);
 static size_t max_utf8len (const char lines[][LINE_BYTE_SIZE], unsigned int n_lines);
 static void utf8cat (char *dest, const char *src, size_t n);
 static size_t utf8_get_n_symbols_size (const char *str, size_t n);
+static unsigned char get_utf8_char_width (const char *str);
 
 static void braile_translate (const char *inp, char *out);
 
+static size_t count_free_len (const char *const dest, const char *const src);
 static void put_text_general (char lines[][LINE_BYTE_SIZE], unsigned int *index, const char *buf);
 
 static void clear_console (const screen_t *screen);
@@ -218,7 +220,7 @@ static void put_text_general (char lines[][LINE_BYTE_SIZE], unsigned int *index,
 
     while (buf_len > 0)
     {
-        size_t screen_free_len = CONSOLE_LEN - utf8len (lines[*index]);
+        size_t screen_free_len = count_free_len (lines[*index], buf);
 
         utf8cat (lines[*index], buf + buf_index, screen_free_len);
 
@@ -252,20 +254,7 @@ static size_t utf8len (const char *str) {
     size_t length = 0;
 
     while (*str != '\0') {
-        if (0xf0 == (0xf8 & *str)) {
-            /* 4-byte utf8 code point (began with 0b11110xxx) */
-            str += 4;
-        } else if (0xe0 == (0xf0 & *str)) {
-            /* 3-byte utf8 code point (began with 0b1110xxxx) */
-            str += 3;
-        } else if (0xc0 == (0xe0 & *str)) {
-            /* 2-byte utf8 code point (began with 0b110xxxxx) */
-            str += 2;
-        } else { /* if (0x00 == (0x80 & *s)) { */
-            /* 1-byte ascii (began with 0b0xxxxxxx) */
-            str += 1;
-        }
-
+        str += get_utf8_char_width (str);
         length++;
     }
 
@@ -290,20 +279,14 @@ static void utf8cat (char *dest, const char *src, size_t n) {
         dest++;
     }
 
+    unsigned char char_width = 0;
+
     while (n > 0 && *src != '\0') {
-        if (0xf0 == (0xf8 & *src)) {
-            /* 4-byte utf8 code point (began with 0b11110xxx) */
-            COPY_TYPE (u_int32_t);
-        } else if (0xe0 == (0xf0 & *src)) {
-            /* 3-byte utf8 code point (began with 0b1110xxxx) */
-            COPY_TYPE (u_int16_t);            
-            COPY_TYPE (u_int8_t);            
-        } else if (0xc0 == (0xe0 & *src)) {
-            /* 2-byte utf8 code point (began with 0b110xxxxx) */
-            COPY_TYPE (u_int16_t);            
-        } else { /* if (0x00 == (0x80 & *s)) { */
-            /* 1-byte ascii (began with 0b0xxxxxxx) */
-            COPY_TYPE (u_int8_t);            
+        char_width = get_utf8_char_width (src);
+        while (char_width > 0)
+        {
+            *(dest++) = *(src++);
+            char_width--;
         }
 
         n--;
@@ -365,6 +348,39 @@ static size_t max_utf8len (const char lines[][LINE_BYTE_SIZE], unsigned int n_li
 
 // ----------------------------------------------------------------------------
 
+static size_t count_free_len (const char *const dest, const char *const src)
+{
+    assert (dest != nullptr && "invalid pointer");
+    assert (src  != nullptr && "invalid pointer");
+
+    size_t max_possible_len  = CONSOLE_LEN - utf8len (dest);
+
+    size_t current_len     = 0;
+    size_t char_width      = 0;
+    size_t last_whitespace = 0;
+
+    while (*src != '\0')
+    {
+        char_width = get_utf8_char_width (src);
+
+        if (char_width == 1 && *src == ' ')
+        {
+            last_whitespace = current_len;
+        }
+
+        current_len += char_width;
+
+        if (current_len > max_possible_len)
+        {
+            return last_whitespace;
+        }
+    }
+
+    return last_whitespace;
+}
+
+// ----------------------------------------------------------------------------
+
 #define BR_LETTER(symb, br)                         \
 if (strncmp (inp, symb, sizeof (symb) - 1) == 0)    \
 {                                                   \
@@ -418,4 +434,25 @@ static void clear_lines (screen_t *screen)
 
     screen->n_text_lines  = 0;
     screen->n_speak_lines = 0;
+}
+
+// ----------------------------------------------------------------------------
+
+static unsigned char get_utf8_char_width (const char *str)
+{
+    assert (str != nullptr && "invalid pointer");
+
+    if (0xf0 == (0xf8 & *str)) {
+        /* 4-byte utf8 code point (began with 0b11110xxx) */
+        return 4;
+    } else if (0xe0 == (0xf0 & *str)) {
+        /* 3-byte utf8 code point (began with 0b1110xxxx) */
+        return 3;
+    } else if (0xc0 == (0xe0 & *str)) {
+        /* 2-byte utf8 code point (began with 0b110xxxxx) */
+        return 2;
+    } else { /* if (0x00 == (0x80 & *s)) { */
+        /* 1-byte ascii (began with 0b0xxxxxxx) */
+        return 1;            
+    }
 }
