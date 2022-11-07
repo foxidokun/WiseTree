@@ -215,7 +215,7 @@ static void put_text_general (char lines[][LINE_BYTE_SIZE], unsigned int *index,
     assert (index != nullptr && "invalid pointer");
     assert (buf   != nullptr && "invalid pointer");
 
-    ssize_t buf_len  = utf8len (buf);
+    ssize_t buf_len  = (ssize_t) utf8len (buf);
     size_t buf_index = 0;
 
     while (buf_len > 0)
@@ -224,12 +224,12 @@ static void put_text_general (char lines[][LINE_BYTE_SIZE], unsigned int *index,
 
         utf8cat (lines[*index], buf + buf_index, screen_free_len);
 
-        if (buf_len > screen_free_len)
+        if ((size_t) buf_len > screen_free_len)
         {
             (*index)++;
         }
 
-        buf_len   -= screen_free_len;
+        buf_len   -= (ssize_t) screen_free_len;
         buf_index += utf8_get_n_symbols_size (buf, screen_free_len);
     }
 }
@@ -348,7 +348,7 @@ static size_t max_utf8len (const char lines[][LINE_BYTE_SIZE], unsigned int n_li
 
 // ----------------------------------------------------------------------------
 
-static size_t count_free_len (const char *const dest, const char *const src)
+static size_t count_free_len (const char *const dest, const char *src)
 {
     assert (dest != nullptr && "invalid pointer");
     assert (src  != nullptr && "invalid pointer");
@@ -362,13 +362,14 @@ static size_t count_free_len (const char *const dest, const char *const src)
     while (*src != '\0')
     {
         char_width = get_utf8_char_width (src);
+        current_len++;
 
         if (char_width == 1 && *src == ' ')
         {
             last_whitespace = current_len;
         }
 
-        current_len += char_width;
+        src += char_width;
 
         if (current_len > max_possible_len)
         {
