@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
+#include <wctype.h>
 #include <stdarg.h>
 
 #include "lib/log.h"
@@ -19,12 +20,11 @@
 // CONST & HEADER
 // ----------------------------------------------------------------------------
 
-const int N_LINES     = 32;
-const int LINE_LEN    = 200;
+const int N_ART_LINES = 32;
 const int CMD_LEN     = 400;
-const int CONSOLE_LEN = 60;
 
-const char SEP_LINE[3*(LINE_LEN+4)] = "═══════════════════════════════════════════════════════════════════════════════════";
+const wchar_t SEP_LINE  [CONSOLE_LEN+4] = L"═══════════════════════════════════════════════════════════════";
+const wchar_t SHADE_LINE[CONSOLE_LEN+4] = L"▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
 
 #define I  "\033[3m"
 #define DC "\033[0m"
@@ -33,21 +33,15 @@ static void render_text_lines (const screen_t *screen, const char (*ascii_art)[L
                                                         unsigned int i, size_t max_len);
 static void tts_run (const screen_t *screen);
 
-static size_t utf8len (const char *str);
-static size_t max_utf8len (const char lines[][LINE_BYTE_SIZE], unsigned int n_lines);
-static void utf8cat (char *dest, const char *src, size_t n);
-static size_t utf8_get_n_symbols_size (const char *str, size_t n);
-static unsigned char get_utf8_char_width (const char *str);
+static void braile_translate (const wchar_t *inp, wchar_t *out);
 
-static void braile_translate (const char *inp, char *out);
-
-static size_t count_free_len (const char *const dest, const char *const src);
-static void put_text_general (char lines[][LINE_BYTE_SIZE], unsigned int *index, const char *buf);
+static size_t count_free_len (const wchar_t *const dest, const wchar_t *const src);
+static void put_text_general (wchar_t lines[][LINE_LEN], unsigned int *index, const wchar_t *buf);
 
 static void clear_console (const screen_t *screen);
 static void clear_lines   (screen_t *screen);
 
-#define PRINT(fmt, ...) fprintf (screen->stream, fmt, ##__VA_ARGS__)
+#define PRINT(fmt, ...) fwprintf (screen->stream, fmt, ##__VA_ARGS__)
 
 // ----------------------------------------------------------------------------
 // PUBLIC
@@ -65,32 +59,32 @@ void screen_ctor (screen_t *screen, FILE *stream)
 
 // ----------------------------------------------------------------------------
 
-void put_line (screen_t *screen, const char *fmt, ...)
+void put_line (screen_t *screen, const wchar_t *fmt, ...)
 {
     assert (screen && "invalid pointer");
     assert (fmt    && "invalid pointer");
 
-    char buf[LINE_LEN] = "";
+    wchar_t buf[LINE_LEN] = L"";
     va_list args;
     va_start (args, fmt);
 
-    vsprintf (buf, fmt, args);
-    strcat (screen->text_lines[screen->n_text_lines], buf);
+    vswprintf (buf, LINE_LEN, fmt, args);
+    put_text_general (screen->text_lines,  &screen->n_text_lines,  buf);
     screen->n_text_lines++;
 
     va_end (args);
 }
 
-void put_text (screen_t *screen, const char *fmt, ...)
+void put_text (screen_t *screen, const wchar_t *fmt, ...)
 {
     assert (screen && "invalid pointer");
     assert (fmt    && "invalid pointer");
 
-    char buf[LINE_LEN] = "";
+    wchar_t buf[LINE_LEN] = L"";
     va_list args;
     va_start (args, fmt);
 
-    vsprintf (buf, fmt, args);
+    vswprintf (buf, LINE_LEN, fmt, args);
 
     put_text_general (screen->text_lines, &screen->n_text_lines, buf);
 
@@ -99,41 +93,40 @@ void put_text (screen_t *screen, const char *fmt, ...)
 
 // ----------------------------------------------------------------------------
 
-void speak (const char *phrase)
+void speak (const wchar_t *phrase)
 {
     char cmd[CMD_LEN] = "";
 
-    sprintf (cmd, "echo '%s' | festival --tts &>console.log", phrase);
+    sprintf (cmd, "echo %ls | festival --tts &>console.log", phrase);
     system (cmd);
 }
 
-void put_speak_line (screen_t *screen, const char *fmt, ...)
+void put_speak_line (screen_t *screen, const wchar_t *fmt, ...)
 {
     assert (screen && "invalid pointer");
     assert (fmt    && "invalid pointer");
 
-    char buf[LINE_LEN] = "";
+    wchar_t buf[LINE_LEN] = L"";
     va_list args;
     va_start (args, fmt);
 
-    vsprintf (buf, fmt, args);
-    strcat (screen->text_lines[screen->n_text_lines], buf);
-    strcat (screen->speak_lines[screen->n_speak_lines], buf);
+    vswprintf (buf, LINE_LEN, fmt, args);
+    put_text_general (screen->text_lines,  &screen->n_text_lines,  buf);
+    put_text_general (screen->speak_lines, &screen->n_speak_lines, buf);
     screen->n_text_lines++;
     screen->n_speak_lines++;
-
     va_end (args);
 }
 
-void put_speak_text (screen_t *screen, const char *fmt, ...)
+void put_speak_text (screen_t *screen, const wchar_t *fmt, ...)
 {
     assert (screen && "invalid pointer");
     assert (fmt    && "invalid pointer");
 
-    char buf[LINE_LEN] = "";
+    wchar_t buf[LINE_LEN] = L"";
     va_list args;
     va_start (args, fmt);
-    vsprintf (buf, fmt, args);
+    vswprintf (buf, LINE_LEN, fmt, args);
 
     put_text_general (screen->text_lines,  &screen->n_text_lines,  buf);
     put_text_general (screen->speak_lines, &screen->n_speak_lines, buf);
@@ -147,7 +140,7 @@ void render (screen_t *screen, render_mode_t mode)
 {
     assert (screen != nullptr && "pointer can't be null");
 
-    unsigned int text_line_beg = (N_LINES - screen->n_text_lines) / 2;
+    unsigned int text_line_beg = (N_ART_LINES - screen->n_text_lines) / 2;
     unsigned int i = 0;
     const char (*ascii_art)[LINE_LEN] = nullptr;
 
@@ -159,11 +152,11 @@ void render (screen_t *screen, render_mode_t mode)
     clear_console (screen);
 
     // Begin art block
-    for (; i < text_line_beg - 1; ++i) PRINT ("%s\n", ascii_art[i]);
+    for (; i < text_line_beg - 1; ++i) PRINT (L"%s\n", ascii_art[i]);
     //
 
     // Top # block
-    PRINT ("%s\t╔%.*s╗\n", ascii_art[i],  3*((int)CONSOLE_LEN+2), SEP_LINE);
+    PRINT (L"%s\t╔%.*ls╗\n", ascii_art[i], CONSOLE_LEN+2, SEP_LINE);
     i++;
 
     // Text block
@@ -171,11 +164,12 @@ void render (screen_t *screen, render_mode_t mode)
     i += screen->n_text_lines;
 
     // Bottom # block
-    PRINT ("%s\t╚%.*s╝\n", ascii_art[i], 3*((int)CONSOLE_LEN+2), SEP_LINE);
-    i++;
+    PRINT (L"%s\t╚%.*ls╝▓\n", ascii_art[i], CONSOLE_LEN+2, SEP_LINE);
+    PRINT (L"%s\t %.*ls\n",   ascii_art[i], CONSOLE_LEN+4, SHADE_LINE);
+    i+=2;
 
     //Continue art block
-    for (; i < N_LINES; ++i)  PRINT ("%s\n", ascii_art[i]);
+    for (; i < N_ART_LINES; ++i)  PRINT (L"%s\n", ascii_art[i]);
 
     tts_run (screen);
 
@@ -192,45 +186,42 @@ static void render_text_lines (const screen_t *screen, const char (*ascii_art)[L
     assert (screen    != nullptr && "invalid pointer");
     assert (ascii_art != nullptr && "invalid pointer");
 
-    char buf[LINE_LEN*4] = "";
-    size_t byte_size = 0;
-    size_t len       = 0;
+    wchar_t buf[LINE_LEN*4] = L"";
 
     for (unsigned int j = 0; j < screen->n_text_lines; ++i, ++j)
     {
-        byte_size = strlen  (screen->text_lines[j]);
-        len       = utf8len (screen->text_lines[j]);
-
         braile_translate (screen->text_lines[j], buf);
-        PRINT ("%s\t║ " I "%-*s ║\t%s\n" DC, ascii_art[i], (int) (byte_size + max_len - len),
+        PRINT (L"%s\t║ " I "%-*ls ║▓\t%ls\n" DC, ascii_art[i], (int)max_len,
                                                                 screen->text_lines[j], buf);
     }
 }
 
 // ----------------------------------------------------------------------------
 
-static void put_text_general (char lines[][LINE_BYTE_SIZE], unsigned int *index, const char *buf)
+static void put_text_general (wchar_t lines[][LINE_LEN], unsigned int *index, const wchar_t *buf)
 {
     assert (lines != nullptr && "invalid pointer");
     assert (index != nullptr && "invalid pointer");
     assert (buf   != nullptr && "invalid pointer");
 
-    ssize_t buf_len  = (ssize_t) utf8len (buf);
-    size_t buf_index = 0;
+    ssize_t buf_len  = (ssize_t) wcslen (buf);
 
     while (buf_len > 0)
     {
         size_t screen_free_len = count_free_len (lines[*index], buf);
 
-        utf8cat (lines[*index], buf + buf_index, screen_free_len);
+        assert (screen_free_len < CONSOLE_LEN);
+        assert (screen_free_len != 0);
+
+        wcsncat (lines[*index], buf, screen_free_len);
 
         if ((size_t) buf_len > screen_free_len)
         {
             (*index)++;
         }
 
-        buf_len   -= (ssize_t) screen_free_len;
-        buf_index += utf8_get_n_symbols_size (buf, screen_free_len);
+        buf_len -= (ssize_t) screen_free_len;
+        buf     += screen_free_len;
     }
 }
 
@@ -240,136 +231,36 @@ static void tts_run (const screen_t *screen)
 {
     assert (screen != nullptr && "invalid pointer");
 
-    for (unsigned int n = 0; n < screen->n_speak_lines; ++n)
-    {
-        speak (screen->speak_lines[n]);
-    }
-}
-
-// ----------------------------------------------------------------------------
-
-static size_t utf8len (const char *str) {
-    assert (str != nullptr && "invalid pointer");
-
-    size_t length = 0;
-
-    while (*str != '\0') {
-        str += get_utf8_char_width (str);
-        length++;
-    }
-
-    return length;
-}
-
-// ----------------------------------------------------------------------------
-
-#define COPY_TYPE(type)                     \
-{                                           \
-    *(type *) dest = *(const type *) src;   \
-    dest += sizeof (type);                  \
-    src  += sizeof (type);                  \
-}
-
-static void utf8cat (char *dest, const char *src, size_t n) {
-    assert (dest != nullptr && "invalid pointer");
-    assert (src  != nullptr && "invalid pointer");
-
-    while (*dest != '\0')
-    {
-        dest++;
-    }
-
-    unsigned char char_width = 0;
-
-    while (n > 0 && *src != '\0') {
-        char_width = get_utf8_char_width (src);
-        while (char_width > 0)
+    #ifdef VOICE
+        for (unsigned int n = 0; n < screen->n_speak_lines; ++n)
         {
-            *(dest++) = *(src++);
-            char_width--;
+            speak (screen->speak_lines[n]);
         }
-
-        n--;
-    }
-
-    dest[0] = '\0';
+    #endif
 }
 
 // ----------------------------------------------------------------------------
 
-static size_t utf8_get_n_symbols_size (const char *str, size_t n)
-{
-    assert (str != nullptr && "invalid pointer");
-
-    size_t byte_size = 0;
-
-    while (n > 0)
-    {       
-        if (0xf0 == (0xf8 & *str)) {
-            /* 4-byte utf8 code point (began with 0b11110xxx) */
-            byte_size += 4;
-        } else if (0xe0 == (0xf0 & *str)) {
-            /* 3-byte utf8 code point (began with 0b1110xxxx) */
-            byte_size += 3;
-        } else if (0xc0 == (0xe0 & *str)) {
-            /* 2-byte utf8 code point (began with 0b110xxxxx) */
-            byte_size += 2;
-        } else { /* if (0x00 == (0x80 & *s)) { */
-            /* 1-byte ascii (began with 0b0xxxxxxx) */
-            byte_size += 1;            
-        }
-
-        n--;
-    }
-
-    return byte_size - 1; // delete '\0' character
-}
-
-// ----------------------------------------------------------------------------
-
-static size_t max_utf8len (const char lines[][LINE_BYTE_SIZE], unsigned int n_lines)
-{
-    assert (lines != nullptr && "pointer can't be null");
-
-    size_t max_len = 0;
-    size_t cur_len = 0;
-
-    for (unsigned int n = 0; n < n_lines; ++n)
-    {
-        cur_len = utf8len (lines[n]);
-        if (cur_len > max_len)
-        {
-            max_len = cur_len;
-        }
-    }
-
-    return max_len;
-}
-
-// ----------------------------------------------------------------------------
-
-static size_t count_free_len (const char *const dest, const char *src)
+static size_t count_free_len (const wchar_t *const dest, const wchar_t *src)
 {
     assert (dest != nullptr && "invalid pointer");
     assert (src  != nullptr && "invalid pointer");
 
-    size_t max_possible_len  = CONSOLE_LEN - utf8len (dest);
+    size_t max_possible_len = CONSOLE_LEN - wcslen (dest);
 
     size_t current_len     = 0;
-    size_t char_width      = 0;
     size_t last_whitespace = 0;
 
-    while (*src != '\0')
+    while (*src != L'\0')
     {
-        char_width = get_utf8_char_width (src);
         current_len++;
 
-        if (char_width == 1 && *src == ' ')
+        if (iswspace((wint_t) *src))
         {
             last_whitespace = current_len;
         }
 
-        src += char_width;
+        src++;
 
         if (current_len > max_possible_len)
         {
@@ -377,35 +268,36 @@ static size_t count_free_len (const char *const dest, const char *src)
         }
     }
 
-    return last_whitespace;
+    return current_len;
 }
 
 // ----------------------------------------------------------------------------
 
 #define BR_LETTER(symb, br)                         \
-if (strncmp (inp, symb, sizeof (symb) - 1) == 0)    \
+if (*inp == symb)                                   \
 {                                                   \
-    strcat (out, br);                               \
-    inp += sizeof (symb) - 1;                       \
+    *out = br;                                      \
+    inp++;                                          \
+    out++;                                          \
 }                                                   \
 else        
 
-static void braile_translate (const char *inp, char *out)
+static void braile_translate (const wchar_t *inp, wchar_t *out)
 {
     assert (inp != nullptr && "invalid pointer");
     assert (out != nullptr && "invalid pointer");
-
-    out[0] = '\0';
 
     while (*inp != '\0')
     {
         #include  "braile_alphabet.h"
         /*else*/
         {
-            fprintf (stderr, "Unexpected char in <%s> (%d)\n", inp, inp[0]);
+            fprintf (stderr, "Unexpected char in <%ls>\n", inp);
             assert (0 && "Unexpected char");
         }  
     }
+
+    out[0] = '\0';
 }
 
 // ----------------------------------------------------------------------------
@@ -414,7 +306,7 @@ static void clear_console (const screen_t *screen)
 {
     assert (screen != nullptr && "pointer can't be null");
 
-    PRINT ("\033[2J\033[1;1H");
+    PRINT (L"\033[2J\033[1;1H");
 }
 
 // ----------------------------------------------------------------------------
@@ -435,25 +327,4 @@ static void clear_lines (screen_t *screen)
 
     screen->n_text_lines  = 0;
     screen->n_speak_lines = 0;
-}
-
-// ----------------------------------------------------------------------------
-
-static unsigned char get_utf8_char_width (const char *str)
-{
-    assert (str != nullptr && "invalid pointer");
-
-    if (0xf0 == (0xf8 & *str)) {
-        /* 4-byte utf8 code point (began with 0b11110xxx) */
-        return 4;
-    } else if (0xe0 == (0xf0 & *str)) {
-        /* 3-byte utf8 code point (began with 0b1110xxxx) */
-        return 3;
-    } else if (0xc0 == (0xe0 & *str)) {
-        /* 2-byte utf8 code point (began with 0b110xxxxx) */
-        return 2;
-    } else { /* if (0x00 == (0x80 & *s)) { */
-        /* 1-byte ascii (began with 0b0xxxxxxx) */
-        return 1;            
-    }
 }

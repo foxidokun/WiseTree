@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <locale.h>
 
 #include "common.h"
 #include "lib/log.h"
@@ -11,6 +12,9 @@ int strcmp_wrapper (const void *lhs, const void *rhs);
 
 int main ()
 {
+    setlocale (LC_ALL, "ru_RU.UTF-8");
+    fwide (stdout, 1);
+
     FILE *log_file = fopen ("log.html", "w");
     FILE *dump_file = fopen (DUMP_FILE, "r");
 

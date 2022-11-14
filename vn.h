@@ -2,9 +2,11 @@
 #define VN_H
 
 #include <stdio.h>
+#include <wchar.h>
 
-const int LINE_BYTE_SIZE = 256;
-const int MAX_LINES      = 64;
+const int MAX_LINES   = 64;
+const int CONSOLE_LEN = 60;
+const int LINE_LEN    = 200;
 
 enum class render_mode_t
 {
@@ -16,8 +18,8 @@ struct screen_t
 {
     unsigned int n_text_lines;
     unsigned int n_speak_lines;
-    char text_lines[MAX_LINES][LINE_BYTE_SIZE];
-    char speak_lines[MAX_LINES][LINE_BYTE_SIZE];
+    wchar_t text_lines [MAX_LINES][LINE_LEN];
+    wchar_t speak_lines[MAX_LINES][LINE_LEN];
     FILE *stream;
 };
 
@@ -25,12 +27,12 @@ void screen_ctor (screen_t *screen, FILE *stream);
 
 void render (screen_t *screen, render_mode_t mode);
 
-void put_line (screen_t *screen, const char *fmt, ...);
-void put_text (screen_t *screen, const char *fmt, ...);
+void put_line (screen_t *screen, const wchar_t *fmt, ...);
+void put_text (screen_t *screen, const wchar_t *fmt, ...);
 void newline  (screen_t *screen);
 
-void speak (const char *phrase);
-void put_speak_line (screen_t *screen, const char *fmt, ...);
-void put_speak_text (screen_t *screen, const char *fmt, ...);
+void speak (const wchar_t *phrase);
+void put_speak_line (screen_t *screen, const wchar_t *fmt, ...);
+void put_speak_text (screen_t *screen, const wchar_t *fmt, ...);
 
 #endif
